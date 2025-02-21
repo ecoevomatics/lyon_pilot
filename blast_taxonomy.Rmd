@@ -1,0 +1,120 @@
+---
+title: "Taxonomy assignment from BLAST results"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read-in and prep one example BLAST output file
+
+```{r}
+s <- read.table("data/lyon_pilot_asvs_part_002.fasta_blast_test2_results.out", 
+                sep = "\t")
+```
+
+Give column names to the data.frame
+
+```{r}
+colnames(s)[c(1:3, 14)] <- c("asv_name", "ncbi_accession", 
+                             "percent_match", "species")
+```
+
+## Fetch higher taxonomy for all matches
+
+We will use the `taxize` package for this task 
+
+```{r}
+library(taxize)
+```
+
+The basic steps are to 
+
+1. get the unique ID for each accession number using `genbank2uid` like this:
+
+```{r}
+genbank2uid("1509790295")
+```
+
+That gives us the unique ID, in this case `468654`. Then we can
+
+2. Fetch the higher classification with the `classification` function like this:
+
+
+```{r}
+classification(468654, db = "ncbi")
+```
+
+Note: it is worth running `use_entrez()` to set-up an ENTREZ API key.  Having the API key will allow you to make more calls to the NCBI databases before you hit any limits.
+
+Now we need to write code to extract the accession number from the BLAST results 
+
+```{r}
+acc <- s$ncbi_accession
+
+# removes "gi|" 
+acc <- gsub("gi\\|", "", acc)
+
+# removes anything after "|"
+acc <- gsub("\\|.*", "", acc)
+
+# there are likely duplicate accession numbers (multiple ASVs match to the same
+# accession number) so let's make a vector of just the unique ones so we make 
+# a smaller request of the NCBI server
+
+acc_unique <- unique(acc)
+```
+
+
+The function `genbank2uid` can work on the entire vector of accession numbers
+
+```{r}
+all_uid <- genbank2uid(acc_unique)
+
+# there are also likely duplicate UIDs (multiple accessions get the same 
+# species) so we remove duplicates here too
+
+uid_unique <- unlist(all_uid) |> unique()
+```
+
+Now we need to specify the taxonomic ranks we actually want because `classification` will give us back a bunch of random stuff. We are also going to write a function to clean up the output of `classification`
+
+```{r}
+yes_ranks <- c("kingdom", "phylum", "class", "order", 
+               "family", "genus", "species")
+
+# helper function to clean output of `classification`
+#' @param x is the raw output (a named list) 
+#' @param ranks is a character vector providing the desired ranks
+#' @returns a data.frame with columns for each of the ranks in `ranks`; rownames
+#'          are unique IDs
+
+clean_output <- function(x, ranks) {
+    tax <- lapply(x, function(d) {
+        d <- d[d$rank %in% ranks, ]
+        out <- d$name
+        
+        names(out) <- d$rank
+        out <- out[ranks]
+        names(out) <- ranks
+        
+        return(out)
+    })
+    
+    res <- do.call(rbind, tax) |> as.data.frame()
+    
+    return(res)
+}
+```
+
+Now we can run this function on the classifiation output for all the unique IDs.
+
+```{r}
+raw_higher_tax <- classification(uid_unique, db = "ncbi")
+higher_tax <- clean_output(raw_higher_tax, yes_ranks)
+
+higher_tax
+```
+
+Note with all these functions that query NCBI can potentially error out due to rate limits etc. So if that happens, and keeps happening, we might need to pursue a different solution 
