@@ -59,6 +59,9 @@ acc <- gsub("gi\\|", "", acc)
 # removes anything after "|"
 acc <- gsub("\\|.*", "", acc)
 
+# add these clean accessions back to the BLAST output data.frame
+s$acc <- acc
+
 # there are likely duplicate accession numbers (multiple ASVs match to the same
 # accession number) so let's make a vector of just the unique ones so we make 
 # a smaller request of the NCBI server
@@ -72,9 +75,13 @@ The function `genbank2uid` can work on the entire vector of accession numbers
 ```{r}
 all_uid <- genbank2uid(acc_unique)
 
+# let's combine `all_uid` with `acc_unique` so that we can match accession
+# number to UID
+acc_uid_hash <- data.frame(uid = unlist(all_uid), 
+                           acc = acc_unique)
+
 # there are also likely duplicate UIDs (multiple accessions get the same 
 # species) so we remove duplicates here too
-
 uid_unique <- unlist(all_uid) |> unique()
 ```
 
@@ -87,8 +94,8 @@ yes_ranks <- c("kingdom", "phylum", "class", "order",
 # helper function to clean output of `classification`
 #' @param x is the raw output (a named list) 
 #' @param ranks is a character vector providing the desired ranks
-#' @returns a data.frame with columns for each of the ranks in `ranks`; rownames
-#'          are unique IDs
+#' @returns a data.frame with columns for each of the ranks in `ranks` and a
+#'          column for UID
 
 clean_output <- function(x, ranks) {
     tax <- lapply(x, function(d) {
@@ -104,17 +111,125 @@ clean_output <- function(x, ranks) {
     
     res <- do.call(rbind, tax) |> as.data.frame()
     
+    # make a column for UID
+    res <- cbind(uid = rownames(res), res)
+    
+    rownames(res) <- NULL
+    
     return(res)
 }
 ```
 
-Now we can run this function on the classifiation output for all the unique IDs.
+Now we can run this function on the classification output for all the unique IDs.
 
 ```{r}
 raw_higher_tax <- classification(uid_unique, db = "ncbi")
 higher_tax <- clean_output(raw_higher_tax, yes_ranks)
 
-higher_tax
+head(higher_tax)
 ```
 
 Note with all these functions that query NCBI can potentially error out due to rate limits etc. So if that happens, and keeps happening, we might need to pursue a different solution 
+
+## Reach concensus about classification
+
+First we need to assign taxonomy back to the BLAST output so we can match ASV ID to taxonomic hierarchy.
+
+```{r}
+blast_tax <- merge(acc_uid_hash, higher_tax) |> # add taxonomy to acc numbers
+    merge(y = s[, -which(names(s) == "species")]) # add above to BLAST output
+
+# now retain only the columns we care about
+blast_tax <- blast_tax[, c("asv_name", "acc", "percent_match", "uid", 
+                           yes_ranks)]
+```
+
+Now we will compute consensus taxonomy. The context of the BLAST results is that the 10 top hits were requested with a minimum match of 85%. We will use the following rules to compute consensus taxonomy:
+
+1. We will set a parameter `sway = 0.5` that is a percentage 
+2. Any hit with a percent match greater than `max(percent_match) - sway` will be kept for computing taxonomy, the rest will be discarded
+3. The lowest taxonomic level for which there is consensus in the kept hits will be considered the consensus taxonomic assignment 
+4. We will set a parameter `min_match = 97` which is the minimum percent match required to make a species-level assignment; so even if all kept hits agree on a species, but their percent match is less than `min_match` we will shift the taxonomic assignment to a higher taxon
+5. Each higher taxonomic level will require a minimum percent match that is `level_dec = 2` less than the previous level (e.g. genus requires 95% match, kingdom requires 85% match) 
+
+
+```{r}
+# function to compute consensus taxonomy
+#' @param x is a data.frame in the format of `blast_tax` (computed above) but 
+#'          which has been subsetted to just one asv
+#' @param sway as described above
+#' @param min_match as described above
+#' @param level_dec as described above
+
+taxon_consensus <- function(x, sway = 0.5, min_match = 97, level_dec = 2) {
+    # calc max percent match
+    maxp <- max(x$percent_match)
+    
+    # retain hits >= maxp - sway
+    x <- x[x$percent_match >= maxp - sway, ]
+    
+    # if only one remains, that's the one
+    nhit <- nrow(x)
+    if(nhit == 1) {
+        the_tax <- x[, c("asv_name", "percent_match", yes_ranks)]
+    } else {
+        # calculate mean percent match
+        mean_match <- mean(x$percent_match)
+        
+        # boolean, TRUE = yes agree
+        agree <- sapply(yes_ranks, function(r) {
+            length(unique(x[[r]])) == 1
+        })
+        
+        # keep only ranks for which there is agreement
+        agree_id <- which(agree) |> max()
+        bad_ranks <- yes_ranks[-(1:agree_id)]
+        
+        # make a single row data.frame of the agreed taxonomy
+        the_tax <- x[1, c("asv_name", "percent_match", yes_ranks)]
+        the_tax[, bad_ranks] <- NA # make un-agreed ranks = NA
+        the_tax$percent_match <- mean_match
+    }
+    
+    # figure out appropriate level given percent match
+    cc <- min_match - ((length(yes_ranks):1) - 1) * level_dec # rank cut offs
+    supported_id <- which(the_tax$percent_match >= cc) |> max()
+    unsupported_ranks <- yes_ranks[-(1:supported_id)]
+    
+    # trim to appropriate level
+    the_tax[, unsupported_ranks] <- NA
+    
+    return(the_tax)
+} 
+```
+
+Let's test this function on a few ASVs
+
+```{r}
+asv1 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[1], ]
+asv1
+
+taxon_consensus(asv1)
+
+asv4 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[4], ]
+asv4
+
+taxon_consensus(asv4)
+
+asv5 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[5], ]
+asv5
+
+taxon_consensus(asv5)
+```
+
+All that looks good to me, so let's run it on everything
+
+```{r}
+tax_final <- lapply(unique(blast_tax$asv_name), function(i) {
+    this_asv <- blast_tax[blast_tax$asv_name == i, ]
+    taxon_consensus(this_asv)
+})
+
+tax_final <- do.call(rbind, tax_final)
+```
+
