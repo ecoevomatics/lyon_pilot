@@ -9,6 +9,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Read-in and prep one example BLAST output file
 
+
+
 ```{r}
 s <- read.table("data/lyon_pilot_asvs_part_002.fasta_blast_test2_results.out", 
                 sep = "\t")
