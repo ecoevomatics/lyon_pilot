@@ -1,0 +1,528 @@
+---
+title: "trim_dada2_blastn"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Lyon pilot data exploration
+
+##Metadata
+###Primers used: BF3/BR2
+###Amplicon size: 458 bp
+####BF3: CCHGAYATRGCHTTYCCHCG
+####BR2: TCDGGRTGNCCRAARAAYCA
+
+##See stats for files if viewing them for the first time.
+```{bash}
+#seqkit stats *fastq*
+```
+
+##TRIM & REMOVE (Later in pipeline, there were too few paired reads so the trimmomatic trimming was ELIMINATED, all code # out to prevent running)
+###Setup trimmomatic
+```{bash}
+###Navigate to directory with sequences
+#cd ~/bryo_arthro/lyon_pilot/working
+
+###Activate conda environment with trimmomatic (base in this case)
+#conda activate lyon_pilot
+
+###Verify trimmomatic is located in the environment
+#conda trimmomatic
+```
+
+###Trim adapters, then primers, then based on quality and length
+```{bash}
+###Trim one file
+#trimmomatic PE -summary statssummary1 A1_1_roller_S191_R1.fastq A1_1_roller_S191_R2.fastq A1_1_roller_S191_R1_paired2.fastq A1_1_roller_S191_R1_unpaired2.fastq A1_1_roller_S191_R2_paired2.fastq A1_1_roller_S191_R2_unpaired2.fastq ILLUMINACLIP:NexteraPE_PE.fa:2:30:10 ILLUMINACLIP:primers.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+
+###Trimming loop for all files
+#!/bin/bash
+#set -x
+#cd ~/bryo_arthro/lyon_pilot
+#INPUT_DIR="./working"
+#OUTPUT_DIR="./working/trimmed"
+#ADAPTERS="./working/NexteraPE_PE.fa"
+#PRIMERS="./working/primers.fa"
+#SUMMARY_DIR="./working/trimmed/summaries"
+#mkdir -p $OUTPUT_DIR
+#mkdir -p $SUMMARY_DIR
+#for sample in $INPUT_DIR/*_R1.fastq; do
+#	base=$(basename "$sample" _R1.fastq)
+#	R1="$INPUT_DIR/${base}_R1.fastq"
+#    	R2="$INPUT_DIR/${base}_R2.fastq"
+#	    PAIRED_R1="$OUTPUT_DIR/${base}_R1_paired.fastq"
+#    	UNPAIRED_R1="$OUTPUT_DIR/${base}_R1_unpaired.fastq"
+#    	PAIRED_R2="$OUTPUT_DIR/${base}_R2_paired.fastq"
+#    	UNPAIRED_R2="$OUTPUT_DIR/${base}_R2_unpaired.fastq"
+#	    SUMMARY_FILE="$SUMMARY_DIR/${base}_summary.txt"
+#	trimmomatic PE -summary "$SUMMARY_FILE" "$R1" "$R2" \
+#      	 	"$PAIRED_R1" "$UNPAIRED_R1" \
+#        	"$PAIRED_R2" "$UNPAIRED_R2" \
+#        	ILLUMINACLIP:"$ADAPTERS":2:30:10 \
+#		ILLUMINACLIP:"$PRIMERS":2:30:10 \
+#        	LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+#	echo "Processing: $base"
+#	echo "Finished processing $base"
+#done
+```
+####In tests, no reads dropped from Nextera adapters or primers trimming. Therefore all reads dropped were from quality and length parameters.
+####Later in pipeline, there were too few paired reads so the trimmomatic trimming was ELIMINATED.
+
+###If desired, concatenate trimmomatic summaries into one file.
+```{bash}
+#for file in ./summaries/*.txt; do
+#    echo "=== $(basename "$file") ===" >> merged_summaries.txt
+#    cat "$file" >> merged_summaries.txt
+#    echo -e "\n" >> merged_summaries.txt  # Adds a blank line between files
+#done
+```
+
+##SETUP dada2, if not already done.
+```{r}
+###Install Bioconductor
+#if (!require("BiocManager", quietly = TRUE))
+#  install.packages("BiocManager")
+#BiocManager::install(version = "3.20")
+
+###Install binaries from Bioconductor for dada2
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#  install.packages("BiocManager")
+#BiocManager::install("dada2", version = "3.20")
+
+####Check dada2
+#packageVersion("dada2")
+```
+
+##LOAD dada2 at start of each session before proceeding
+```{r}
+library("dada2")
+```
+
+##VISUALIZE QUALITY of FORWARD reads with dada2
+###Switch to use untrimmed files now that trimmomatic was dropped
+```{r}
+###Set path
+path <- "~/bryo_arthro/lyon_pilot/working/untrimmed"
+list.files(path)
+```
+
+###Match forward and reverse fastq files
+```{r}
+fnFs <- sort(list.files(path, pattern="_R1.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2.fastq", full.names = TRUE))
+```
+
+###Extract sample names
+```{r}
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+sample.names
+```
+###Visualize quality profiles of forward reads
+```{r}
+#plotQualityProfile(fnFs[1:12])
+#plotQualityProfile(fnFs[13:24])
+#plotQualityProfile(fnFs[25:36])
+#plotQualityProfile(fnFs[37:48])
+#plotQualityProfile(fnFs[49:52])
+```
+
+###Visualize quality profiles of reverse reads
+```{r}
+#plotQualityProfile(fnRs[1:12])
+#plotQualityProfile(fnRs[13:24])
+#plotQualityProfile(fnRs[25:36])
+#plotQualityProfile(fnRs[37:48])
+#plotQualityProfile(fnRs[49:52])
+```
+
+##FILTER and TRIM with dada2
+###Create subdirectory for filtered files
+```{r}
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq"))
+filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq"))
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+```
+
+###Filter, see filterAndTrim help manual for all options.
+```{r}
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, trimLeft=c(25, 25), truncLen=c(250, 225),
+              maxEE=c(2, 5), maxN=0, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE)
+
+###Check trim results
+#out
+
+```
+
+##Check ERROR RATES for FORWARD reads
+###I don't think these can be looked at with too much scrutiny since there is such a wide range of quality between the sample types...
+```{r}
+###learnErrors for forward and reverse separately
+#errF <- learnErrors(filtFs, multithread=TRUE)
+
+###Visualize error rates
+#plotErrors(errF, nominalQ=TRUE)
+
+```
+
+##Check ERROR RATES for REVERSE reads
+```{r}
+###learnErrors for forward and reverse separately
+#errR <- learnErrors(filtRs, multithread=TRUE)
+
+###Visualize error rates
+#plotErrors(errR, nominalQ=TRUE)
+
+```
+
+##Remove any samples that no longer exist
+###Not needed if no samples had all reads trimmed (no reads.out = 0)
+```{r}
+###Check if any filtered files do not exist
+#exists <- file.exists(filtFs)
+#exists
+
+##Subset to only those that exist
+#filtFs <- filtFs[exists]
+
+# Do the same for reverse reads if applicable
+#filtRs <- filtRs[exists]  
+
+# Ensure sample names match
+#sample.names <- sample.names[exists]  
+```
+
+##Depreplication
+```{r}
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+```
+
+##Infer TRUE SEQUENCE VARIANTS from filtered and trimmed FORWARD data
+```{r}
+###Create dada-class object
+dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
+
+###Inspect object of an example sample
+dadaFs[[1]]
+```
+
+##Infer TRUE SEQUENCE VARIANTS from filtered and trimmed REVERSE data
+```{r}
+###Create dada-class object
+dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
+
+###Inspect object of an example sample
+dadaRs[[1]]
+```
+
+##Merge paired reads
+##Optionally use justConcatenate=TRUE, DO WE WANT TO DO THIS? 
+```{r}
+###Merge reads to obtain full denoised sequences
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+
+###Inspect the merger data.frame from an example sample
+head(mergers[[1]])
+```
+
+##CONSTRUCT SEQUENCE TABLE
+```{r}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+
+#Inspect distribution of sequence lengths
+table(nchar(getSequences(seqtab)))
+```
+###458bp amplicon expected
+
+###Optionally, remove non-target-length sequences from the sequence table
+```{r}
+#seqtab_cut <- seqtab[, nchar(colnames(seqtab)) %in% seq(224:458)]
+#hist(table(nchar(getSequences(seqtab_cut))))
+```
+
+###Optionally, check sample composition
+```{r}
+rowSums(seqtab > 0)  # Number of ASVs per sample
+```
+###Optionally, check sample composition
+```{r}
+rowSums(seqtab)  # Total read counts per sample
+```
+###Optionally, check sample composition
+```{r}
+hist(colSums(seqtab > 0))  # Number of samples each ASV appears in
+```
+
+##REMOVE CHIMERAS
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+```
+
+###Optionally, see percentage of merged reads that were chimeras if we account for the abundances of variants
+```{r}
+sum(seqtab.nochim)/sum(seqtab)
+```
+####So when we account for the abundances of those variances lost, they account for ~62% of the merged sequence reads.
+####From dada2 manual: Most of your reads should remain after chimera removal (it is not uncommon for a majority of sequence variants to be removed though). If most of your reads were removed as chimeric, upstream processing may need to be revisited. In almost all cases this is caused by primer sequences with ambiguous nucleotides that were not removed prior to beginning the DADA2 pipeline.
+
+###Optionally, check sample composition
+```{r}
+rowSums(seqtab.nochim > 0)  # Number of ASVs per sample
+```
+###Optionally, check sample composition
+```{r}
+rowSums(seqtab.nochim)  # Total read counts per sample
+```
+###Optionally, check sample composition
+```{r}
+hist(colSums(seqtab.nochim > 0))  # Number of samples each ASV appears in
+```
+
+##TRACK reads through pipeline
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+track
+
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+```
+####From manual: /Considerations for your own data: This is a great place to do a last sanity check. Outside of filtering, there should no step in which a majority of reads are lost. If a majority of reads failed to merge, you may need to revisit the truncLen parameter used in the filtering step and make sure that the truncated reads span your amplicon. If a majority of reads were removed as chimeric, you may need to revisit the removal of primers, as the ambiguous nucleotides in unremoved primers interfere with chimera identification./
+
+##EXTRACT fasta of ASV sequences from sequence table with chimeras removed
+```{r}
+#sq <- getSequences(seqtab.nochim)
+#id <- paste0("Abundance=", colSums(seqtab.nochim))
+#names(sq) <- id
+#library(dada2)
+#writeFasta(sq, file="lyon_pilot/working/lyon_pilot_asvs.fasta") #writeFasta no longer part of dada2
+
+# Define output file
+fasta_file <- "lyon_pilot_asvs.fasta"
+
+# Extract ASV sequences
+asv_seqs <- colnames(seqtab.nochim)  # ASV sequences
+asv_counts <- colSums(seqtab.nochim)  # Get ASV counts across all samples
+asv_headers <- paste0(">ASV", seq_len(length(asv_seqs)), "_count_", asv_counts)  # ASV identifiers and abundance headers
+
+# Write to FASTA
+writeLines(c(rbind(asv_headers, asv_seqs)), fasta_file)
+
+#View
+#file.show("lyon_pilot_asvs.fasta")
+```
+
+##BLAST ASVs: Method 1 - on Koa server
+###TESTING: Split fasta for job array if not done already
+```{bash}
+#conda install -c bioconda seqkit
+###Convert ASV file into smaller files to meet BLAST maximums (<1,000,000)
+#seqkit split -p 110 lyon_pilot_asvs.fasta
+```
+
+###TESTING: Create job array listing file
+```{bash}
+#ls `pwd`/* ###Preview the list
+#ls `pwd`/* > ~/lyon_pilot_blast.lst ###Output list if correct
+```
+
+###TESTING: Write slurm script for job
+```{bash}
+##lyon_pilot_blast_test2.slurm:
+
+#!/bin/bash
+#SBATCH --job-name=lyon_pilot_blast2_core_nt
+#SBATCH --array=1-11
+#SBATCH --partition=shared
+#SBATCH --time=0-24:00:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --error=slurm_logs/lyon_pilot_blast_test2-%A_%a.err
+#SBATCH --output=slurm_logs/lyon_pilot_blast_test2-%A_%a.out
+#SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE,TIME_LIMIT_80
+#SBATCH --mail-user=kylieph@hawaii.edu
+
+##Check if slurm_logs directory exists, create it if not
+SLURM_LOG_DIR=~/eem_group/bryo_arthro/lyon_pilot/slurm_logs
+BLAST_OUTPUT_DIR=~/eem_group/bryo_arthro/lyon_pilot/test2_blast_output
+
+[[ -d "$SLURM_LOG_DIR" ]] || mkdir -p "$SLURM_LOG_DIR"
+[[ -d "$BLAST_OUTPUT_DIR" ]] || mkdir -p "$BLAST_OUTPUT_DIR"
+
+
+##Temporarily mount BLAST database directory if it doesn’t already exist
+if [[ ! -d "/tmp/blastdb" ]]; then
+    mkdir /tmp/blastdb
+    squashfuse_ll -o timeout=43200 /mnt/lustre/koa/container/blast/ncbi_latest.sqfs /tmp/blastdb/
+    if [[ ! -d "/tmp/blastdb" ]]; then
+        echo "Error: BLAST database mount failed!"
+        exit 1
+    fi
+
+##Add taxonomy file to tmp/blastdb
+if [[ ! -f "/tmp/blastdb/taxdb.btd" || ! -f "/tmp/blastdb/taxdb.bti" ]]; then
+    cd /tmp/blastdb
+    wget -q https://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz
+    tar -xzf taxdb.tar.gz
+    rm taxdb.tar.gz  # Clean up after extraction
+fi
+
+##Clear then load correct module
+module purge
+module load bio/BLAST+/2.13.0-gompi-2022a
+
+##Define BLAST database directory
+export BLASTDB="/tmp/blastdb"
+
+##Get input file for the current array task
+fid=$(sed -n "$SLURM_ARRAY_TASK_ID"p ~/lyon_pilot_asvs_split.lst)
+filename=$(basename "$fid")
+
+##Check if fid is empty
+if [[ -z "$fid" ]]; then
+    echo "Error: No input file found for task ID $SLURM_ARRAY_TASK_ID"
+    exit 1
+fi
+
+##Run blastn with the selected input file
+blastn -db /tmp/blastdb/core_nt \
+    -query "$fid" \
+    -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids sscinames" \
+    -max_target_seqs 10 \
+    -perc_identity 85 \
+    -num_threads $SLURM_CPUS_PER_TASK \
+    -out "$BLAST_OUTPUT_DIR/${filename}_blast_test2_results.out"
+```
+
+###Submit job
+```{bash}
+sbatch lyon_pilot_blast_test2.slurm  ###navigate to lyon_pilot directory first
+```
+####Submitted batch job 5180409 Feb 19, 2025 at 11:29 AM -- failed due to "out" file not accessible, fixed above and resubmit
+####Submitted batch job 5180606 Feb 19, 2025 at 11:38 AM -- failed for reasons unknown, no error file written so adjusted output directory back to original test
+####Submitted batch job 5180832 Feb 19, 11:49 pm -- BLAST Database error: No alias or index file found for nucleotide database [/tmp/blastdb/core_nt] in search path [/mnt/lustre/koa/lab/eem_group/bryo_arthro/lyon_pilot:/tmp/blastdb:]
+####Submitted batch job 5181190 Feb 19, 12:12 pm -- /var/spool/slurm/d/job5181198/slurm_script: line 63: syntax error: unexpected end of file
+####Submitted batch job 5186942 Feb 19, 3:30 pm -- /var/spool/slurm/d/job5181198/slurm_script: line 63: syntax error: unexpected end of file
+####Submitted batch job 5187183 Feb 19, 3:41 pm -- added a missing "fi" to hopefully solve the problem -- failed due to "Error: BLAST database mount failed!"
+####Submitted batch job 5187326 Feb 19, 3:51 pm -- adjusted required directory to be /tmp/blastdb instead of /tmp/blastdb/core_nt to pass mount test & it seems to be runnning well, woo hoo!
+
+
+###FINAL: Split fasta for job array if not done already
+```{bash}
+#conda install -c bioconda seqkit
+###Convert ASV file into smaller files to meet BLAST maximums (<1,000,000)
+#seqkit split -p 110 lyon_pilot_asvs.fasta
+```
+
+###FINAL: Create job array listing file
+```{bash}
+#ls `pwd`/* ###Preview the list
+#ls `pwd`/* > ~/lyon_pilot_blast.lst ###Output list if correct
+```
+
+###FINAL: Write slurm script for job
+```{bash}
+##lyon_pilot_blast_all.slurm:
+
+#!/bin/bash
+#SBATCH --job-name=lyon_pilot_all_core_nt
+#SBATCH --array=1-110
+#SBATCH --partition=shared
+#SBATCH --time=0-24:00:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --error=slurm_logs/lyon_pilot_blast_all-%A_%a.err
+#SBATCH --output=slurm_logs/lyon_pilot_blast_all-%A_%a.out
+#SBATCH --mail-type=BEGIN,END,FAIL,REQUEUE,TIME_LIMIT_80
+#SBATCH --mail-user=kylieph@hawaii.edu
+
+##Check if slurm_logs directory exists, create it if not
+SLURM_LOG_DIR=~/eem_group/bryo_arthro/lyon_pilot/slurm_logs
+BLAST_OUTPUT_DIR=~/eem_group/bryo_arthro/lyon_pilot/all_blast_output
+
+[[ -d "$SLURM_LOG_DIR" ]] || mkdir -p "$SLURM_LOG_DIR"
+[[ -d "$BLAST_OUTPUT_DIR" ]] || mkdir -p "$BLAST_OUTPUT_DIR"
+
+
+##Temporarily mount BLAST database directory if it doesn’t already exist
+if [[ ! -d "/tmp/blastdb" ]]; then
+    mkdir /tmp/blastdb
+    squashfuse_ll -o timeout=43200 /mnt/lustre/koa/container/blast/ncbi_latest.sqfs /tmp/blastdb/
+    if [[ ! -d "/tmp/blastdb" ]]; then
+        echo "Error: BLAST database mount failed!"
+        exit 1
+    fi
+fi
+
+##Add taxonomy file to tmp/blastdb
+if [[ ! -f "/tmp/blastdb/taxdb.btd" || ! -f "/tmp/blastdb/taxdb.bti" ]]; then
+    cd /tmp/blastdb
+    wget -q https://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz
+    tar -xzf taxdb.tar.gz
+    rm taxdb.tar.gz  # Clean up after extraction
+fi
+
+##Clear then load correct module
+module purge
+module load bio/BLAST+/2.13.0-gompi-2022a
+
+##Define BLAST database directory
+export BLASTDB="/tmp/blastdb"
+
+##Get input file for the current array task
+fid=$(sed -n "$SLURM_ARRAY_TASK_ID"p ~/lyon_pilot_asvs_split.lst)
+filename=$(basename "$fid")
+
+##Check if fid is empty
+if [[ -z "$fid" ]]; then
+    echo "Error: No input file found for task ID $SLURM_ARRAY_TASK_ID"
+    exit 1
+fi
+
+##Run blastn with the selected input file
+blastn -db /tmp/blastdb/core_nt \
+    -query "$fid" \
+    -outfmt "6 qseqid qlen sseqid pident length qstart qend sstart send evalue bitscore staxids" \
+    -max_target_seqs 10 \
+    -perc_identity 85 \
+    -num_threads $SLURM_CPUS_PER_TASK \
+    -out "$BLAST_OUTPUT_DIR/${filename}_blast_all_results.out"
+```
+
+###Submit job
+```{bash}
+sbatch lyon_pilot_blast_all.slurm  ###navigate to lyon_pilot directory first
+```
+####Submitting final sbatch script for all 110 jobs arrays: Submitted batch job 5190612 Feb 20, 2:08 pm
+
+##Merge job array files into one
+```{bash}
+##Navigate to folder with seperate output files
+cat *.out > lyon_pilot_all_blast_merged.out
+```
+
+##Add header column
+```{bash}
+##Make header table
+echo -e "Query_ID\tQuery_Length\tSubject_ID\t%_Identity\tAlignment_Length\tQuery_Start\tQuery_End\tSubject_Start\tSubject_End\tE-value\tBit_Score\tSubject_Taxonomy_ID" > lyon_pilot_all_blast_merged_labelled.out
+
+##Merge header table with merged file to create final file
+cat lyon_pilot_all_blast_merged.out >> lyon_pilot_all_blast_merged_labelled.out
+```
+
+##Convert to R data frame
+```{bash}
+sed 's/\t/,/g' lyon_pilot_all_blast_merged_labelled.out > lyon_pilot_all_blast_merged_labelled.csv
+```
+
+#SWITCH TO "Taxonomy assignment from BLAST results" NOTEBOOK (blast_taxonomy.Rmd)
