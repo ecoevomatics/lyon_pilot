@@ -1,0 +1,15 @@
+---
+title: "Comparative Analyses of Arthropoda in Lyon Trial"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read in arthropoda data form Lyon Pilot blast taxonomy analysis
+```{r}
+a <- read.table("~/bryo_arthro/lyon_pilot_git/arthropoda_lyon_pilot.csv", 
+                sep = ",", header = TRUE)  ### changed to comma delimited with headers
+```
+
