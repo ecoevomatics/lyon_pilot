@@ -7,20 +7,19 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Read-in and prep one example BLAST output file
-
-
+## Read-in and prep BLAST output file with column names
+### For V2 of blast_taxonomy, adjusted to start with merged data file with column names already included. 
 
 ```{r}
-s <- read.table("data/lyon_pilot_asvs_part_002.fasta_blast_test2_results.out", 
-                sep = "\t")
+s <- read.table("~/bryo_arthro/lyon_pilot/working/lyon_pilot_all_blast_merged_labelled.csv", 
+                sep = ",", header = TRUE)  ### changed to comma delimited with headers
 ```
 
-Give column names to the data.frame
+## Give column names to the data.frame
 
 ```{r}
-colnames(s)[c(1:3, 14)] <- c("asv_name", "ncbi_accession", 
-                             "percent_match", "species")
+colnames(s)[c(1, 3, 4)] <- c("asv_name", "ncbi_accession", 
+                               "percent_match")
 ```
 
 ## Fetch higher taxonomy for all matches
@@ -36,7 +35,7 @@ The basic steps are to
 1. get the unique ID for each accession number using `genbank2uid` like this:
 
 ```{r}
-genbank2uid("1509790295")
+#genbank2uid("1509790295")    ### example
 ```
 
 That gives us the unique ID, in this case `468654`. Then we can
@@ -45,24 +44,28 @@ That gives us the unique ID, in this case `468654`. Then we can
 
 
 ```{r}
-classification(468654, db = "ncbi")
+#classification(468654, db = "ncbi")    ### example
 ```
 
 Note: it is worth running `use_entrez()` to set-up an ENTREZ API key.  Having the API key will allow you to make more calls to the NCBI databases before you hit any limits.
 
+```{r}
+#install.packages("rentrez")
+library(rentrez)
+set_entrez_key("2edc8029dbf711ec8e46c7d66c093d5e4e09")  ### Kylie's API key, stores it for current R session
+```
+
+
 Now we need to write code to extract the accession number from the BLAST results 
 
 ```{r}
-acc <- s$ncbi_accession
+acc <- s$ncbi_accession   ### set vector
 
-# removes "gi|" 
-acc <- gsub("gi\\|", "", acc)
+acc <- gsub("gi\\|", "", acc) ### removes "gi|"
 
-# removes anything after "|"
-acc <- gsub("\\|.*", "", acc)
+acc <- gsub("\\|.*", "", acc) ### removes anything after "|"
 
-# add these clean accessions back to the BLAST output data.frame
-s$acc <- acc
+s$acc <- acc  ### add these clean accessions back to the BLAST output data.frame
 
 # there are likely duplicate accession numbers (multiple ASVs match to the same
 # accession number) so let's make a vector of just the unique ones so we make 
@@ -113,8 +116,7 @@ clean_output <- function(x, ranks) {
     
     res <- do.call(rbind, tax) |> as.data.frame()
     
-    # make a column for UID
-    res <- cbind(uid = rownames(res), res)
+    res <- cbind(uid = rownames(res), res)   ### make a column for UID
     
     rownames(res) <- NULL
     
@@ -137,13 +139,37 @@ Note with all these functions that query NCBI can potentially error out due to r
 
 First we need to assign taxonomy back to the BLAST output so we can match ASV ID to taxonomic hierarchy.
 
-```{r}
-blast_tax <- merge(acc_uid_hash, higher_tax) |> # add taxonomy to acc numbers
-    merge(y = s[, -which(names(s) == "species")]) # add above to BLAST output
+In lyon_pilot, the data is too large to run, so split data into chunks?
 
-# now retain only the columns we care about
+```{r}
+#Split s into chunks
+split_data <- function(data, chunk_size) {
+  split(data, ceiling(seq_len(nrow(data)) / chunk_size))
+}
+chunk_size <- 1000  # Define chunk size
+s_chunks <- split_data(s, chunk_size)
+
+#Merge each chunk 
+blast_tax_chunks <- lapply(s_chunks, function(s_chunk) {
+  merged_acc <- merge(acc_uid_hash, higher_tax, by = "uid")  
+  merge(merged_acc, s_chunk[, setdiff(names(s_chunk), "species")], by = "acc")
+})
+
+#Combine chunks
+blast_tax <- do.call(rbind, blast_tax_chunks)
+
+#Now retain only the columns we care about
 blast_tax <- blast_tax[, c("asv_name", "acc", "percent_match", "uid", 
                            yes_ranks)]
+
+
+###ANDY'S ORIGINA if data frames are not too large to exceed memory
+#blast_tax <- merge(acc_uid_hash, higher_tax) |> # add taxonomy to acc numbers
+#    merge(y = s[, -which(names(s) == "species")]) # add above to BLAST output
+
+# now retain only the columns we care about
+#blast_tax <- blast_tax[, c("asv_name", "acc", "percent_match", "uid", 
+#                           yes_ranks)]
 ```
 
 Now we will compute consensus taxonomy. The context of the BLAST results is that the 10 top hits were requested with a minimum match of 85%. We will use the following rules to compute consensus taxonomy:
@@ -164,7 +190,8 @@ Now we will compute consensus taxonomy. The context of the BLAST results is that
 #' @param level_dec as described above
 
 taxon_consensus <- function(x, sway = 0.5, min_match = 97, level_dec = 2) {
-    # calc max percent match
+  # browser()  
+  # calc max percent match
     maxp <- max(x$percent_match)
     
     # retain hits >= maxp - sway
@@ -184,13 +211,19 @@ taxon_consensus <- function(x, sway = 0.5, min_match = 97, level_dec = 2) {
         })
         
         # keep only ranks for which there is agreement
-        agree_id <- which(agree) |> max()
-        bad_ranks <- yes_ranks[-(1:agree_id)]
-        
-        # make a single row data.frame of the agreed taxonomy
-        the_tax <- x[1, c("asv_name", "percent_match", yes_ranks)]
-        the_tax[, bad_ranks] <- NA # make un-agreed ranks = NA
-        the_tax$percent_match <- mean_match
+        if(all(!agree)) { # no ranks agree
+          the_tax <- x[1, c("asv_name", "percent_match", yes_ranks)]
+          the_tax[yes_ranks] <- NA
+          the_tax$percent_match <- mean_match
+        } else {
+          agree_id <- which(agree) |> max()
+          bad_ranks <- yes_ranks[-(1:agree_id)]
+          
+          # make a single row data.frame of the agreed taxonomy
+          the_tax <- x[1, c("asv_name", "percent_match", yes_ranks)]
+          the_tax[, bad_ranks] <- NA # make un-agreed ranks = NA
+          the_tax$percent_match <- mean_match
+        }
     }
     
     # figure out appropriate level given percent match
@@ -208,20 +241,20 @@ taxon_consensus <- function(x, sway = 0.5, min_match = 97, level_dec = 2) {
 Let's test this function on a few ASVs
 
 ```{r}
-asv1 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[1], ]
-asv1
+#asv1 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[1], ]
+#asv1
 
-taxon_consensus(asv1)
+#taxon_consensus(asv1)
 
-asv4 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[4], ]
-asv4
+#asv4 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[4], ]
+#asv4
 
-taxon_consensus(asv4)
+#taxon_consensus(asv4)
 
-asv5 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[5], ]
-asv5
+#asv5 <- blast_tax[blast_tax$asv_name == unique(blast_tax$asv_name)[5], ]
+#asv5
 
-taxon_consensus(asv5)
+#taxon_consensus(asv5)
 ```
 
 All that looks good to me, so let's run it on everything
