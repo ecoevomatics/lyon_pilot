@@ -278,7 +278,9 @@ percentage_arthropoda
 ```
 ##11.88% of ASVs are arthropoda, but how much of the relative abundance is arthropoda (need to calculate using ASV frequency) 
 
+##Bar plot of phylums
 ```{r}
+
 library("ggplot2")
 phylum_counts <- table(tax_final$phylum, useNA = "ifany")   ### Calculate sum
 phylum_counts   ### View table
@@ -290,16 +292,128 @@ phylum_df$percent <- (phylum_df$count / sum(phylum_df$count)) * 100   ### Calcul
 ggplot(phylum_df, aes(x = reorder(phylum, -percent), y = percent, fill = phylum)) +     ### Plot
   geom_bar(stat = "identity") +
   coord_flip() +
-  labs(x = "Phylum", y = "Percentage (%)", title = "Percentage of Phylum Types") +
+  labs(x = "Phylum", y = "Percentage (%)", title = "Percentage of ASV Phyla Types") +
   theme_minimal() +
   theme(legend.position = "none")
 
 ```
 
+##Bar plot of tax levels
 ```{r}
+library("ggplot2")
+library("tidyverse")
+my_colors <- rainbow(50)
+
+kingdom_phylum_tax <- tax_final %>%
+  group_by(kingdom, phylum) %>%
+  summarize(count = n(), .groups = "drop") %>%
+  mutate(percent = (count / sum(count)) * 100)
+
+ggplot(kingdom_phylum_tax, aes(x = kingdom, y = percent, fill = phylum)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(x = "Kingdom", y = "Percentage (%)", 
+       title = "Percentage of ASVs per Phyla within each Kingdom") +
+  scale_fill_manual(values = my_colors, na.value = "gray80") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 
+##How much of the relative abundance is arthropoda by ASV frequency?
+```{r}
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+my_colors <- rainbow(50)
+
+tax_final_split <- tax_final %>%
+    separate(asv_name, into = c("asv_id", "count"), sep = "_count_")
+
+tax_final_split$count <- as.numeric(tax_final_split$count)
+
+tax_final_split$asv_id <- paste0("ASV", str_pad(gsub("ASV", "", tax_final_split$asv_id), width = 4, pad = "0"))
+
+total_reads <- sum(tax_final_split$count)
+
+kingdom_abundance <- tax_final_split %>%
+  group_by(kingdom) %>%
+  summarize(total_kingdom_count = sum(count)) %>%
+    mutate(percentage = (total_kingdom_count / total_reads) * 100)
+kingdom_abundance
+
+phylum_abundance <- tax_final_split %>%
+  group_by(phylum) %>%
+  summarize(total_phylum_count = sum(count)) %>%
+    mutate(percentage = (total_phylum_count / total_reads) * 100)
+phylum_abundance
+
+kingdom_total_reads <- tax_final_split %>%
+  group_by(kingdom) %>%
+  summarize(total_kingdom_reads = sum(count))
+
+kingdom_phylum_abundance <- tax_final_split %>%
+  group_by(kingdom, phylum) %>%
+  summarize(total_phylum_count = sum(count)) %>%
+    ungroup()
+kingdom_phylum_abundance
+
+ggplot(kingdom_phylum_abundance, aes(x = kingdom, y = total_phylum_count, fill = phylum)) +
+  geom_bar(stat = "identity") +  
+  labs(x = "Kingdom", y = "Read frequency (%)", title = "Frequency by Kingdom and Phyla") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  
+        legend.position = "right")  
+```
+
+##Hone in on Metazoa
+```{r}
+metazoa <- tax_final_split %>%
+    filter(kingdom == "Metazoa")
+head(metazoa)
+
+total_reads_metazoa <- sum(metazoa$count)
+
+metazoa_phylum_abundance <- metazoa %>%
+  group_by(phylum) %>%
+  summarize(total_phylum_count = sum(count)) %>%
+    mutate(percentage = (total_phylum_count / total_reads_metazoa) * 100)
+metazoa_phylum_abundance
+
+ggplot(metazoa_phylum_abundance, aes(x = phylum, y = percentage)) +
+  geom_bar(stat = "identity") +  
+  labs(x = "Phyla", y = "Read frequency (%)", title = "Frequency of Phyla in Metazoa only") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  
+        legend.position = "right")  
+```
+
+##Hone in on Arthropoda
+```{r}
+arthropoda <- tax_final_split %>%
+    filter(phylum == "Arthropoda")
+head(arthropoda)
+
+write.csv(arthropoda, "arthropoda_lyon_pilot.csv", row.names = FALSE)
+
+total_reads_arthropoda <- sum(arthropoda$count)
+
+arthropoda_class <- metazoa %>%
+  group_by(class) %>%
+  summarize(total_class_count = sum(count)) %>%
+    mutate(percentage = (total_class_count / total_reads_arthropoda) * 100)
+arthropoda_class
+
+ggplot(arthropoda_class, aes(x = class, y = total_class_count)) +
+  geom_bar(stat = "identity") +  
+  labs(x = "Class", y = "# of reads", title = "Read frequency of Class in Arthropoda only") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),  
+        legend.position = "right")  
+```
+
+
+##Go to next notebook investigating ASV abundance per sample, habitat type, site, etc.
 
 
 
