@@ -268,3 +268,40 @@ tax_final <- lapply(unique(blast_tax$asv_name), function(i) {
 tax_final <- do.call(rbind, tax_final)
 ```
 
+
+#Taxonomy exploration and visualization
+```{r}
+arthropoda_count <- sum(tax_final$phylum == "Arthropoda", na.rm = TRUE)
+total_count <- sum(!is.na(tax_final$phylum))
+percentage_arthropoda <- (arthropoda_count / total_count) * 100
+percentage_arthropoda
+```
+##11.88% of ASVs are arthropoda, but how much of the relative abundance is arthropoda (need to calculate using ASV frequency) 
+
+```{r}
+library("ggplot2")
+phylum_counts <- table(tax_final$phylum, useNA = "ifany")   ### Calculate sum
+phylum_counts   ### View table
+
+phylum_df <- as.data.frame(phylum_counts)
+colnames(phylum_df) <- c("phylum", "count")
+phylum_df$percent <- (phylum_df$count / sum(phylum_df$count)) * 100   ### Calculate percent
+
+ggplot(phylum_df, aes(x = reorder(phylum, -percent), y = percent, fill = phylum)) +     ### Plot
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(x = "Phylum", y = "Percentage (%)", title = "Percentage of Phylum Types") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+```
+
+```{r}
+
+```
+
+
+
+
+
+
