@@ -163,7 +163,7 @@ out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, trimLeft=c(25, 25), truncLen=c(
 ###I don't think these can be looked at with too much scrutiny since there is such a wide range of quality between the sample types...
 ```{r}
 ###learnErrors for forward and reverse separately
-#errF <- learnErrors(filtFs, multithread=TRUE)
+errF <- learnErrors(filtFs, multithread=TRUE)
 
 ###Visualize error rates
 #plotErrors(errF, nominalQ=TRUE)
@@ -173,7 +173,7 @@ out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, trimLeft=c(25, 25), truncLen=c(
 ##Check ERROR RATES for REVERSE reads
 ```{r}
 ###learnErrors for forward and reverse separately
-#errR <- learnErrors(filtRs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
 
 ###Visualize error rates
 #plotErrors(errR, nominalQ=TRUE)
@@ -262,10 +262,13 @@ rowSums(seqtab)  # Total read counts per sample
 hist(colSums(seqtab > 0))  # Number of samples each ASV appears in
 ```
 
-##REMOVE CHIMERAS
+##REMOVE CHIMERAS and extract final sequence table
 ```{r}
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
 dim(seqtab.nochim)
+
+write.csv(seqtab.nochim, "seqtab.nochim.csv")
+
 ```
 
 ###Optionally, see percentage of merged reads that were chimeras if we account for the abundances of variants
@@ -300,7 +303,7 @@ track
 ```
 ####From manual: /Considerations for your own data: This is a great place to do a last sanity check. Outside of filtering, there should no step in which a majority of reads are lost. If a majority of reads failed to merge, you may need to revisit the truncLen parameter used in the filtering step and make sure that the truncated reads span your amplicon. If a majority of reads were removed as chimeric, you may need to revisit the removal of primers, as the ambiguous nucleotides in unremoved primers interfere with chimera identification./
 
-##EXTRACT fasta of ASV sequences from sequence table with chimeras removed
+##EXTRACT fasta and CSV of ASV sequences from sequence table with chimeras removed
 ```{r}
 #sq <- getSequences(seqtab.nochim)
 #id <- paste0("Abundance=", colSums(seqtab.nochim))
@@ -321,6 +324,18 @@ writeLines(c(rbind(asv_headers, asv_seqs)), fasta_file)
 
 #View
 #file.show("lyon_pilot_asvs.fasta")
+
+# Extract in CSV
+asv_seqs_csv <- getSequences(seqtab.nochim)
+asv_ids_csv <- paste0("ASV", seq_along(asv_seqs_csv))
+asv_table <- data.frame(ASV_ID = asv_ids_csv, Sequence = asv_seqs_csv, stringsAsFactors = FALSE)
+head(asv_table)
+
+asv_table$ASV_ID <- paste0("ASV", str_pad(gsub("ASV", "", asv_table$ASV_ID), width = 4, pad = "0"))
+head(asv_table)
+write.csv(asv_table, "asv_seq_table.csv", row.names = FALSE)
+
+
 ```
 
 ##BLAST ASVs: Method 1 - on Koa server
