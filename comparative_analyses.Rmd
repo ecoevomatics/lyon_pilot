@@ -7,9 +7,106 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Read in arthropoda data form Lyon Pilot blast taxonomy analysis
+## Read in all final data from dada2 and Lyon Pilot blast taxonomy analysis
 ```{r}
-a <- read.table("~/bryo_arthro/lyon_pilot_git/arthropoda_lyon_pilot.csv", 
-                sep = ",", header = TRUE)  ### changed to comma delimited with headers
+## This is the ASV to taxonomy data
+a <- read.table("~/bryo_arthro/lyon_pilot_git/data/arthropoda_lyon_pilot.csv", 
+                sep = ",", header = TRUE) 
+
+## This is the sequence to sample data
+s <- read.table("~/bryo_arthro/lyon_pilot_git/data/seqtab_nochim.csv", 
+                sep = ",", header = TRUE)
+s2 <- as.data.frame(t(s))
+colnames(s2) <- s2[1,]
+s2 <- s2[-1,]
+
+## Add asv_id column to s
+s2$Sequence <- rownames(s2)
+s3 <- s2[, c(ncol(s2), 1:(ncol(s2) - 1))]
+
+##This is the sequence to ASV data
+asv <- read.table("~/bryo_arthro/lyon_pilot_git/data/asv_seq_table.csv", 
+                sep = ",", header = TRUE)
+colnames(asv)[1] <- "asv_id"  ### rename the first column
+
+metadata <- read.table("~/bryo_arthro/lyon_pilot_git/data/lyon_metadata.csv",
+                sep = ",", header = TRUE)
+
+## We need to integrate all three together
+asv_taxa_table <- merge(asv, a, by = "asv_id")
+s3_asv_table <- merge(s3, asv[, c("Sequence", "asv_id")], by = "Sequence", all.x = TRUE)
+merged <- merge(s3_asv_table, asv_taxa_table, by = "asv_id", all.x = TRUE)
 ```
+
+## The merge was successful, however, the non-Arthropoda ASVs are still present from the asv and s files. We need to remove those.
+```{r}
+library(dplyr)
+
+merged_arthro <- merged %>%
+  filter(!is.na(Sequence.y))
+
+merged_arthro$Sequence.y <- NULL
+colnames(merged_arthro)[colnames(merged_arthro) == "Sequence.x"] <- "sequence"
+
+##Check output
+head(merged_arthro)
+```
+
+## Convert data to long format and make Frequency column numeric
+```{r}
+library(reshape2)
+library(ggplot2)
+
+merged_arthro_long <- melt(merged_arthro, id.vars = c("asv_id", "sequence", "count", "percent_match", "kingdom", "phylum", "class", "order", "family", "genus", "species"),
+                  variable.name = "Sample", value.name = "Frequency")
+
+merged_arthro_long$Frequency <- as.numeric(trimws(merged_arthro_long$Frequency))
+#str(merged_arthro_long)   ### check if it worked
+```
+
+##Create column of lowest taxonimc ID
+```{r}
+library(dplyr)
+
+merged_long_id <- merged_arthro_long %>%
+  mutate(lowest_taxon = coalesce(species, genus, family, order, class, phylum, kingdom))
+```
+
+## Merge with metadata
+```{r}
+final <- merge(merged_long_id, metadata, by = "Sample", all.x = TRUE)
+
+## Export merged
+write.csv(final, "~/bryo_arthro/lyon_pilot_git/data/merged_for_analyses.csv", row.names = FALSE)
+```
+
+## Now we can being analyses on the dataset
+
+## Heatmap of ASV frequency for the highest frequency ASVs
+```{r}
+library(dplyr)
+
+subset1_final <- final %>%
+  mutate(count = as.numeric(count)) %>%   
+  filter(count >= 100 & count <= 43976)
+
+ggplot(subset1_final, aes(x = Sample, y = asv_id, fill = Frequency)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(x = "Sample", y = "ASV ID", title = "ASV frequency across samples") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+## 
+```{r}
+
+```
+
+ 
+ 
+ 
+
+
+
 
