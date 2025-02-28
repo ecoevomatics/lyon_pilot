@@ -20,6 +20,9 @@ s2 <- as.data.frame(t(s))
 colnames(s2) <- s2[1,]
 s2 <- s2[-1,]
 
+iucn_arthro <- read.table("~/bryo_arthro/iucn_summary.csv", 
+                sep = ",", header = TRUE)
+
 ## Add asv_id column to s
 s2$Sequence <- rownames(s2)
 s3 <- s2[, c(ncol(s2), 1:(ncol(s2) - 1))]
@@ -72,17 +75,9 @@ merged_long_id <- merged_arthro_long %>%
   mutate(lowest_taxon = coalesce(species, genus, family, order, class, phylum, kingdom))
 ```
 
-## Merge with metadata
-```{r}
-final <- merge(merged_long_id, metadata, by = "Sample", all.x = TRUE)
+## Now we can begin analyses on the dataset
 
-## Export merged
-write.csv(final, "~/bryo_arthro/lyon_pilot_git/data/merged_for_analyses.csv", row.names = FALSE)
-```
-
-## Now we can being analyses on the dataset
-
-## Heatmap of ASV frequency for the highest frequency ASVs
+## Heatmap of ASV frequency for the highest frequency ASVs; too many to display to include lower occurring ASVs
 ```{r}
 library(dplyr)
 
@@ -98,14 +93,47 @@ ggplot(subset1_final, aes(x = Sample, y = asv_id, fill = Frequency)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
-## 
+## Or if we want to see a heatmap of the lowest taxons 
 ```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
 
+final_summed_taxon <- final %>%
+  group_by(Sample, lowest_taxon) %>%
+  summarize(total_count = sum(Frequency, na.rm = TRUE), .groups = "drop")
+
+ggplot(final_summed_taxon, aes(x = lowest_taxon, y = Sample, fill = total_count)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(x = "Lowest Taxon", y = "Sample", title = "Heat Map of Lowest Taxons Across Samples") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))
+
+ggplot(final_summed_taxon, aes(x = lowest_taxon, y = Sample, fill = log10(total_count + 1))) + 
+  geom_tile(color = "white") +
+  scale_fill_gradient(low = "white", high = "blue", 
+                      name = "Log10(Count)") + 
+  labs(x = "Lowest Taxon", y = "Sample", title = "Log Transformed Heat Map of Lowest Taxons Across Samples") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))
+```
+## Compare final summed taxon to endangered species list
+## RESULT = no matches
+```{r}
+library(dplyr)
+
+iucn_arthro <- iucn_arthro %>%
+  select(-assessmentId, -internalTaxonId, -kingdomName, -phylumName, -orderName, -className, -familyName, -genusName, -infraType, -infraAuthority, -infraName)
+
+iucn_arthro <- iucn_arthro %>%
+    rename(lowest_taxon = scientificName)
+
+matches <- intersect(names(iucn_arthro), names(final_summed_taxon))
 ```
 
- 
- 
- 
+
+
 
 
 
