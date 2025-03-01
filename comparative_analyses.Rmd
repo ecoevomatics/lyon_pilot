@@ -119,7 +119,7 @@ ggplot(final_summed_taxon, aes(x = lowest_taxon, y = Sample, fill = log10(total_
   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 7))
 ```
 ## Compare final summed taxon to endangered species list
-## RESULT = no matches
+## RESULT = no matches to any species on IUCN list
 ```{r}
 library(dplyr)
 
@@ -130,11 +130,16 @@ iucn_arthro <- iucn_arthro %>%
     rename(lowest_taxon = scientificName)
 
 matches <- intersect(names(iucn_arthro), names(final_summed_taxon))
+matches ### see if any matches exist, at minimum the cell "lowest_taxon" should show as a match
+```
+
+```{r}
+
 ```
 
 
 
 
-
+x
 
 
