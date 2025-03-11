@@ -4,7 +4,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
@@ -37,7 +37,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ###Trim adapters, then primers, then based on quality and length
 ```{bash}
 ###Trim one file
-#trimmomatic PE -summary statssummary1 A1_1_roller_S191_R1.fastq A1_1_roller_S191_R2.fastq A1_1_roller_S191_R1_paired2.fastq A1_1_roller_S191_R1_unpaired2.fastq A1_1_roller_S191_R2_paired2.fastq A1_1_roller_S191_R2_unpaired2.fastq ILLUMINACLIP:NexteraPE_PE.fa:2:30:10 ILLUMINACLIP:primers.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
+#trimmomatic PE -summary statssummary1 A1_1_roller_S191_R1.fastq A1_1_roller_S191_R2.fastq A1_1_roller_S191_R1_paired2.fastq #A1_1_roller_S191_R1_unpaired2.fastq A1_1_roller_S191_R2_paired2.fastq A1_1_roller_S191_R2_unpaired2.fastq #ILLUMINACLIP:NexteraPE_PE.fa:2:30:10 ILLUMINACLIP:primers.fa:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:36
 
 ###Trimming loop for all files
 #!/bin/bash
@@ -312,28 +312,28 @@ track
 #writeFasta(sq, file="lyon_pilot/working/lyon_pilot_asvs.fasta") #writeFasta no longer part of dada2
 
 # Define output file
-fasta_file <- "lyon_pilot_asvs.fasta"
+#fasta_file <- "lyon_pilot_asvs.fasta"
 
 # Extract ASV sequences
-asv_seqs <- colnames(seqtab.nochim)  # ASV sequences
-asv_counts <- colSums(seqtab.nochim)  # Get ASV counts across all samples
-asv_headers <- paste0(">ASV", seq_len(length(asv_seqs)), "_count_", asv_counts)  # ASV identifiers and abundance headers
+#asv_seqs <- colnames(seqtab.nochim)  # ASV sequences
+#asv_counts <- colSums(seqtab.nochim)  # Get ASV counts across all samples
+#asv_headers <- paste0(">ASV", seq_len(length(asv_seqs)), "_count_", asv_counts)  # ASV identifiers and abundance headers
 
 # Write to FASTA
-writeLines(c(rbind(asv_headers, asv_seqs)), fasta_file)
+#writeLines(c(rbind(asv_headers, asv_seqs)), fasta_file)
 
 #View
 #file.show("lyon_pilot_asvs.fasta")
 
 # Extract in CSV
-asv_seqs_csv <- getSequences(seqtab.nochim)
-asv_ids_csv <- paste0("ASV", seq_along(asv_seqs_csv))
-asv_table <- data.frame(ASV_ID = asv_ids_csv, Sequence = asv_seqs_csv, stringsAsFactors = FALSE)
-head(asv_table)
+#asv_seqs_csv <- getSequences(seqtab.nochim)
+#asv_ids_csv <- paste0("ASV", seq_along(asv_seqs_csv))
+#asv_table <- data.frame(ASV_ID = asv_ids_csv, Sequence = asv_seqs_csv, stringsAsFactors = FALSE)
+#head(asv_table)
 
-asv_table$ASV_ID <- paste0("ASV", str_pad(gsub("ASV", "", asv_table$ASV_ID), width = 4, pad = "0"))
-head(asv_table)
-write.csv(asv_table, "asv_seq_table.csv", row.names = FALSE)
+#asv_table$ASV_ID <- paste0("ASV", str_pad(gsub("ASV", "", asv_table$ASV_ID), width = 4, pad = "0"))
+#head(asv_table)
+#write.csv(asv_table, "asv_seq_table.csv", row.names = FALSE)
 
 
 ```
@@ -369,60 +369,61 @@ write.csv(asv_table, "asv_seq_table.csv", row.names = FALSE)
 #SBATCH --mail-user=kylieph@hawaii.edu
 
 ##Check if slurm_logs directory exists, create it if not
-SLURM_LOG_DIR=~/eem_group/bryo_arthro/lyon_pilot/slurm_logs
-BLAST_OUTPUT_DIR=~/eem_group/bryo_arthro/lyon_pilot/test2_blast_output
+#SLURM_LOG_DIR=~/eem_group/bryo_arthro/lyon_pilot/slurm_logs
+#BLAST_OUTPUT_DIR=~/eem_group/bryo_arthro/lyon_pilot/test2_blast_output
 
-[[ -d "$SLURM_LOG_DIR" ]] || mkdir -p "$SLURM_LOG_DIR"
-[[ -d "$BLAST_OUTPUT_DIR" ]] || mkdir -p "$BLAST_OUTPUT_DIR"
+#[[ -d "$SLURM_LOG_DIR" ]] || mkdir -p "$SLURM_LOG_DIR"
+#[[ -d "$BLAST_OUTPUT_DIR" ]] || mkdir -p "$BLAST_OUTPUT_DIR"
 
 
 ##Temporarily mount BLAST database directory if it doesn’t already exist
-if [[ ! -d "/tmp/blastdb" ]]; then
-    mkdir /tmp/blastdb
-    squashfuse_ll -o timeout=43200 /mnt/lustre/koa/container/blast/ncbi_latest.sqfs /tmp/blastdb/
-    if [[ ! -d "/tmp/blastdb" ]]; then
-        echo "Error: BLAST database mount failed!"
-        exit 1
-    fi
+#if [[ ! -d "/tmp/blastdb" ]]; then
+#    mkdir /tmp/blastdb
+#    squashfuse_ll -o timeout=43200 /mnt/lustre/koa/container/blast/ncbi_latest.sqfs /tmp/blastdb/
+#    if [[ ! -d "/tmp/blastdb" ]]; then
+#        echo "Error: BLAST database mount failed!"
+#        exit 1
+#    fi
 
 ##Add taxonomy file to tmp/blastdb
-if [[ ! -f "/tmp/blastdb/taxdb.btd" || ! -f "/tmp/blastdb/taxdb.bti" ]]; then
-    cd /tmp/blastdb
-    wget -q https://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz
-    tar -xzf taxdb.tar.gz
-    rm taxdb.tar.gz  # Clean up after extraction
-fi
+#if [[ ! -f "/tmp/blastdb/taxdb.btd" || ! -f "/tmp/blastdb/taxdb.bti" ]]; then
+#    cd /tmp/blastdb
+#    wget -q https://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz
+#    tar -xzf taxdb.tar.gz
+#    rm taxdb.tar.gz  # Clean up after extraction
+#fi
 
 ##Clear then load correct module
-module purge
-module load bio/BLAST+/2.13.0-gompi-2022a
+#module purge
+#module load bio/BLAST+/2.13.0-gompi-2022a
 
 ##Define BLAST database directory
-export BLASTDB="/tmp/blastdb"
+#export BLASTDB="/tmp/blastdb"
 
 ##Get input file for the current array task
-fid=$(sed -n "$SLURM_ARRAY_TASK_ID"p ~/lyon_pilot_asvs_split.lst)
-filename=$(basename "$fid")
+#fid=$(sed -n "$SLURM_ARRAY_TASK_ID"p ~/lyon_pilot_asvs_split.lst)
+#filename=$(basename "$fid")
 
 ##Check if fid is empty
-if [[ -z "$fid" ]]; then
+#if [[ -z "$fid" ]]; then
     echo "Error: No input file found for task ID $SLURM_ARRAY_TASK_ID"
     exit 1
-fi
+#fi
 
 ##Run blastn with the selected input file
-blastn -db /tmp/blastdb/core_nt \
-    -query "$fid" \
-    -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids sscinames" \
-    -max_target_seqs 10 \
-    -perc_identity 85 \
-    -num_threads $SLURM_CPUS_PER_TASK \
-    -out "$BLAST_OUTPUT_DIR/${filename}_blast_test2_results.out"
+
+#blastn -db /tmp/blastdb/core_nt \
+#    -query "$fid" \
+#    -outfmt "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore staxids sscinames" \
+#    -max_target_seqs 10 \
+#    -perc_identity 85 \
+#    -num_threads $SLURM_CPUS_PER_TASK \
+#    -out "$BLAST_OUTPUT_DIR/${filename}_blast_test2_results.out"
 ```
 
 ###Submit job
 ```{bash}
-sbatch lyon_pilot_blast_test2.slurm  ###navigate to lyon_pilot directory first
+#sbatch lyon_pilot_blast_test2.slurm  ###navigate to lyon_pilot directory first
 ```
 ####Submitted batch job 5180409 Feb 19, 2025 at 11:29 AM -- failed due to "out" file not accessible, fixed above and resubmit
 ####Submitted batch job 5180606 Feb 19, 2025 at 11:38 AM -- failed for reasons unknown, no error file written so adjusted output directory back to original test
@@ -463,82 +464,82 @@ sbatch lyon_pilot_blast_test2.slurm  ###navigate to lyon_pilot directory first
 #SBATCH --mail-user=kylieph@hawaii.edu
 
 ##Check if slurm_logs directory exists, create it if not
-SLURM_LOG_DIR=~/eem_group/bryo_arthro/lyon_pilot/slurm_logs
-BLAST_OUTPUT_DIR=~/eem_group/bryo_arthro/lyon_pilot/all_blast_output
+#SLURM_LOG_DIR=~/eem_group/bryo_arthro/lyon_pilot/slurm_logs
+#BLAST_OUTPUT_DIR=~/eem_group/bryo_arthro/lyon_pilot/all_blast_output
 
-[[ -d "$SLURM_LOG_DIR" ]] || mkdir -p "$SLURM_LOG_DIR"
-[[ -d "$BLAST_OUTPUT_DIR" ]] || mkdir -p "$BLAST_OUTPUT_DIR"
+#[[ -d "$SLURM_LOG_DIR" ]] || mkdir -p "$SLURM_LOG_DIR"
+#[[ -d "$BLAST_OUTPUT_DIR" ]] || mkdir -p "$BLAST_OUTPUT_DIR"
 
 
 ##Temporarily mount BLAST database directory if it doesn’t already exist
-if [[ ! -d "/tmp/blastdb" ]]; then
-    mkdir /tmp/blastdb
-    squashfuse_ll -o timeout=43200 /mnt/lustre/koa/container/blast/ncbi_latest.sqfs /tmp/blastdb/
-    if [[ ! -d "/tmp/blastdb" ]]; then
-        echo "Error: BLAST database mount failed!"
-        exit 1
-    fi
-fi
+#if [[ ! -d "/tmp/blastdb" ]]; then
+#    mkdir /tmp/blastdb
+#    squashfuse_ll -o timeout=43200 /mnt/lustre/koa/container/blast/ncbi_latest.sqfs /tmp/blastdb/
+#    if [[ ! -d "/tmp/blastdb" ]]; then
+#        echo "Error: BLAST database mount failed!"
+#        exit 1
+#    fi
+#fi
 
 ##Add taxonomy file to tmp/blastdb
-if [[ ! -f "/tmp/blastdb/taxdb.btd" || ! -f "/tmp/blastdb/taxdb.bti" ]]; then
-    cd /tmp/blastdb
-    wget -q https://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz
-    tar -xzf taxdb.tar.gz
-    rm taxdb.tar.gz  # Clean up after extraction
-fi
+#if [[ ! -f "/tmp/blastdb/taxdb.btd" || ! -f "/tmp/blastdb/taxdb.bti" ]]; then
+#    cd /tmp/blastdb
+#    wget -q https://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz
+#    tar -xzf taxdb.tar.gz
+#    rm taxdb.tar.gz  # Clean up after extraction
+#fi
 
 ##Clear then load correct module
-module purge
-module load bio/BLAST+/2.13.0-gompi-2022a
+#module purge
+#module load bio/BLAST+/2.13.0-gompi-2022a
 
 ##Define BLAST database directory
-export BLASTDB="/tmp/blastdb"
+#export BLASTDB="/tmp/blastdb"
 
 ##Get input file for the current array task
-fid=$(sed -n "$SLURM_ARRAY_TASK_ID"p ~/lyon_pilot_asvs_split.lst)
-filename=$(basename "$fid")
+#fid=$(sed -n "$SLURM_ARRAY_TASK_ID"p ~/lyon_pilot_asvs_split.lst)
+#filename=$(basename "$fid")
 
 ##Check if fid is empty
-if [[ -z "$fid" ]]; then
-    echo "Error: No input file found for task ID $SLURM_ARRAY_TASK_ID"
-    exit 1
-fi
+#if [[ -z "$fid" ]]; then
+#    echo "Error: No input file found for task ID $SLURM_ARRAY_TASK_ID"
+#    exit 1
+#fi
 
 ##Run blastn with the selected input file
-blastn -db /tmp/blastdb/core_nt \
-    -query "$fid" \
-    -outfmt "6 qseqid qlen sseqid pident length qstart qend sstart send evalue bitscore staxids" \
-    -max_target_seqs 10 \
-    -perc_identity 85 \
-    -num_threads $SLURM_CPUS_PER_TASK \
-    -out "$BLAST_OUTPUT_DIR/${filename}_blast_all_results.out"
+#blastn -db /tmp/blastdb/core_nt \
+#    -query "$fid" \
+#    -outfmt "6 qseqid qlen sseqid pident length qstart qend sstart send evalue bitscore staxids" \
+#    -max_target_seqs 10 \
+#    -perc_identity 85 \
+#    -num_threads $SLURM_CPUS_PER_TASK \
+#    -out "$BLAST_OUTPUT_DIR/${filename}_blast_all_results.out"
 ```
 
 ###Submit job
 ```{bash}
-sbatch lyon_pilot_blast_all.slurm  ###navigate to lyon_pilot directory first
+#sbatch lyon_pilot_blast_all.slurm  ###navigate to lyon_pilot directory first
 ```
 ####Submitting final sbatch script for all 110 jobs arrays: Submitted batch job 5190612 Feb 20, 2:08 pm
 
 ##Merge job array files into one
 ```{bash}
 ##Navigate to folder with seperate output files
-cat *.out > lyon_pilot_all_blast_merged.out
+#cat *.out > lyon_pilot_all_blast_merged.out
 ```
 
 ##Add header column
 ```{bash}
 ##Make header table
-echo -e "Query_ID\tQuery_Length\tSubject_ID\t%_Identity\tAlignment_Length\tQuery_Start\tQuery_End\tSubject_Start\tSubject_End\tE-value\tBit_Score\tSubject_Taxonomy_ID" > lyon_pilot_all_blast_merged_labelled.out
+#echo -e "Query_ID\tQuery_Length\tSubject_ID\t%_Identity\tAlignment_Length\tQuery_Start\tQuery_End\tSubject_Start\tSubject_End\tE-value\tBi#   t_Score\tSubject_Taxonomy_ID" > lyon_pilot_all_blast_merged_labelled.out
 
 ##Merge header table with merged file to create final file
-cat lyon_pilot_all_blast_merged.out >> lyon_pilot_all_blast_merged_labelled.out
+#cat lyon_pilot_all_blast_merged.out >> lyon_pilot_all_blast_merged_labelled.out
 ```
 
 ##Convert to R data frame
 ```{bash}
-sed 's/\t/,/g' lyon_pilot_all_blast_merged_labelled.out > lyon_pilot_all_blast_merged_labelled.csv
+#sed 's/\t/,/g' lyon_pilot_all_blast_merged_labelled.out > lyon_pilot_all_blast_merged_labelled.csv
 ```
 
 #SWITCH TO "Taxonomy assignment from BLAST results" NOTEBOOK (blast_taxonomy.Rmd)
