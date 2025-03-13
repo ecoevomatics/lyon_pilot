@@ -7,7 +7,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Read in all final data from dada2 and Lyon Pilot blast taxonomy analysis
+## Read in all final data from dada and Lyon Pilot blast taxonomy analysis. Merge.
 ```{r}
 ## This is the ASV to taxonomy data
 a <- read.table("~/bryo_arthro/lyon_pilot_git/data/arthropoda_lyon_pilot.csv", 
@@ -31,9 +31,6 @@ s3 <- s2[, c(ncol(s2), 1:(ncol(s2) - 1))]
 asv <- read.table("~/bryo_arthro/lyon_pilot_git/data/asv_seq_table.csv", 
                 sep = ",", header = TRUE)
 colnames(asv)[1] <- "asv_id"  ### rename the first column
-
-metadata <- read.table("~/bryo_arthro/lyon_pilot_git/data/lyon_metadata.csv",
-                sep = ",", header = TRUE)
 
 ## We need to integrate all three together
 asv_taxa_table <- merge(asv, a, by = "asv_id")
@@ -75,7 +72,21 @@ merged_long_id <- merged_arthro_long %>%
   mutate(lowest_taxon = coalesce(species, genus, family, order, class, phylum, kingdom))
 ```
 
-## Now we can begin analyses on the dataset
+##Add sample metadata for final file for analyses
+```{r}
+metadata <- read.table("~/bryo_arthro/lyon_pilot_git/data/lyon_metadata.csv",
+                sep = ",", header = TRUE)
+
+merged_long_id_metadata <- merge(merged_long_id, metadata, by = "Sample", all.x = TRUE)
+
+final <- merged_long_id_metadata
+
+write.csv(final, "final.csv", row.names = FALSE)
+
+```
+
+
+# Now we can begin analyses on the dataset
 
 ## Heatmap of ASV frequency for the highest frequency ASVs; too many to display to include lower occurring ASVs
 ```{r}
@@ -133,13 +144,14 @@ matches <- intersect(names(iucn_arthro), names(final_summed_taxon))
 matches ### see if any matches exist, at minimum the cell "lowest_taxon" should show as a match
 ```
 
+#Make figure for:
+## number of taxa by reads
+### group site bryophyte + gauze samples and 
+
 ```{r}
 
 ```
 
 
-
-
-x
 
 
