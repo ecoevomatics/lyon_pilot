@@ -98,10 +98,10 @@ plot_ordination(ps, ps_ord_can, type="taxa", color="class", title="OTUs (Distanc
 
 Ordination plot for samples
 ```{r}
-plot_ordination(ps, ps_ord, type="samples", color="site_name", shape="method", title="Samples (Distance metric: Bray)") +
+plot_ordination(ps, ps_ord, type="samples", color="site_name", shape="substrate", title="Samples (Distance metric: Bray)") +
+    facet_wrap(~method) +
     geom_point(size=2)
 ```
-
 
 
 
