@@ -161,3 +161,4 @@ ggplot(rfy_res, aes(x = depth, y = nspp_m, color = samp)) +
     scale_x_continuous(trans = "log10")
 
 ```
+
