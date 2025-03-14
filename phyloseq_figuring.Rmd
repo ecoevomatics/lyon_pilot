@@ -77,4 +77,87 @@ asvtab <- otu_table(dada2_output, taxa_are_rows = FALSE)
 ps <- phyloseq(asvtab, samp_data, tax_tab, lyon_seqs)
 ```
 
+## Rarefaction
 
+First remove samples we donʻt want to look at through rarefaction:
+
+```{r}
+ps4rar <- subset_samples(ps, method %in% c("Gauze", "Roller") & 
+                             site_name != "Lab" &
+                             substrate != "Control" & 
+                             cleaned_extract == "no")
+
+# add a replicate column for grouping purposes
+d <- sample_data(ps4rar)
+d$rep <- gsub("-gauze.*|-roller.*", "", rownames(d))
+sample_data(ps4rar) <- d
+
+# now merge phyloseq object by rep
+# note: must use merge_samples2 from speedyseq to merge categorical sample data 
+ps4rar_merged <- speedyseq::merge_samples2(ps4rar, "rep")
+
+```
+
+Now we can rarefy 
+
+```{r}
+# define a custom rarefaction function
+#' @param x is a phyloseq object
+
+rfy <- function(x) {
+    dat <- otu_table(x) |> unclass()
+    dat <- dat[, colSums(dat) > 0] # no need taxa where read freq is 0
+    
+    zeros <- rowSums(dat) == 0
+    dat <- dat[!zeros, ]
+    
+    nspp_est <- ncol(dat)
+    
+    res <- lapply(1:nrow(dat), function(i) {
+        # m = s
+        # d = n
+        # this_dat = X_i
+        
+        this_dat <- dat[i, ]
+        d <- sum(this_dat)
+        s <- 2^seq(log(1, 2), log(d, 2), by = 1) 
+        s <- c(s, d)
+        
+        nspp <- sum(this_dat > 0)
+        
+        mvar <- sapply(s, function(m) {
+            alpha <- exp(lchoose(d - this_dat[this_dat > 0], m) - lchoose(d, m))
+            
+            nspp_m <- nspp - sum(alpha)
+            nspp_v <- sum((1 - alpha)^2) - nspp_m^2 / nspp_est
+            
+            return(c(nspp_m = nspp_m, nspp_v = nspp_v))
+        })
+        
+        mvar <- t(mvar) |> as.data.frame()
+        mvar <- cbind(samp = rownames(dat)[i], depth = s, mvar)
+        
+        return(mvar)
+    })
+    
+    res <- do.call(rbind, res)
+    
+    res$nspp_ciLO <- res$nspp_m - 2 * sqrt(res$nspp_v)
+    res$nspp_ciHI <- res$nspp_m + 2 * sqrt(res$nspp_v)
+    
+    return(res)
+}
+
+rfy_res <- rfy(ps4rar_merged)
+```
+
+Finally we can plot it:
+
+```{r}
+library(ggplot2)
+
+ggplot(rfy_res, aes(x = depth, y = nspp_m, color = samp)) +
+    geom_line() +
+    scale_x_continuous(trans = "log10")
+
+```
