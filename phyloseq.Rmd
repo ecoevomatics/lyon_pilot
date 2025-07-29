@@ -15,10 +15,7 @@ library(data.table)
 library(Biostrings)
 library(ape)
 library(plyr)
-<<<<<<< HEAD
 library(vegan)
-=======
->>>>>>> ca3e5eb8faceb8b65c1a42149489484692158c7c
 library(ggplot2)
 theme_set(theme_bw())   ###optional
 ```
@@ -75,8 +72,7 @@ plot_richness(ps, measures=c("Chao1", "Shannon"), x="substrate", color="method",
 ```
 
 
-
-Ordination plot for ASV's
+Troubleshooting ordination
 ```{r}
 #ps_ord <- ordinate(ps, "NMDS", "bray")      ###troubleshoot data after failing to ordinate
 
@@ -85,29 +81,25 @@ ps <- prune_samples(sample_sums(ps) > 0, ps)    ###remove them
 
 #anyNA(otu_table(ps))    ###false, so that's good
 
-#try again
-ps_ord <- ordinate(ps, "NMDS", "bray")
-plot_ordination(ps, ps_ord, type="taxa", color="order", title="OTUs (Distance metric: Bray)") +
-<<<<<<< HEAD
-    facet_wrap(~class) +
-    xlim(-0.1, 1) +
-    ylim(-0.1, 0.6)
-=======
-    facet_wrap(~class)
-plot_ordination(ps, ps_ord, type="taxa", color="class", title="OTUs")
->>>>>>> ca3e5eb8faceb8b65c1a42149489484692158c7c
+#check ordination
+#ps_ord$stress
 
+#retry ordination
+ps_ord <- ordinate(ps, "NMDS", "bray")
+
+
+    
+#check ordination
+ps_ord$stress
+
+#how many data points should be displayed for class and order?
 #length(unique(asv2tax$class))      ###there are 13 classes being displayed
 #length(unique(asv2tax$order))      ###there are 42 orders being displayed
 
 #canberra good for emphasizing low-abundance taxa
-<<<<<<< HEAD
-ps_ord <- ordinate(ps, "NMDS", "canberra")
-plot_ordination(ps, ps_ord, type="taxa", color="order", title="OTUs (Distance metric: Canberra)") +
-    facet_wrap(~class)
-
-#check ordination
-ps_ord$stress
+#ps_ord <- ordinate(ps, "NMDS", "canberra")
+#plot_ordination(ps, ps_ord, type="taxa", color="order", title="OTUs (Distance metric: Canberra)") +
+#    facet_wrap(~class)
 
 #check distance matrix
 dist_matrix <- vegdist(otu_table(ps), method = "bray")
@@ -133,10 +125,10 @@ plot_ordination(ps, ps_th_ord, type="split", color="class", shape="site_name", t
 
 #centered log-ratio transformation? 
 #transform(ps, "clr")
-=======
-ps_ord_can <- ordinate(ps, "NMDS", "canberra")
-plot_ordination(ps, ps_ord_can, type="taxa", color="class", title="OTUs (Distance metric: Canberra)")
->>>>>>> ca3e5eb8faceb8b65c1a42149489484692158c7c
+
+#try removing rare taxa to get more realistic stress value
+
+
 ```
 
 
@@ -148,16 +140,10 @@ plot_ordination(ps, ps_ord, type="samples", color="site_name", shape="substrate"
 ```
 
 
-
-Display sample and OTUs in side by side panels to compare
+Ordination biplots to display samples and OTUs side by side
 ```{r}
-<<<<<<< HEAD
-plot_ordination(ps, ps_ord, type="split", color="family", shape="site_name", title="bilot (Distance metric: Bray)", label = "station") +
-    geom_point(size=3)
-=======
 plot_ordination(ps, ps_ord, type="split", color="class", shape="site_name", title="bilot (Distance metric: Bray)", label = "station") +
     geom_point(size=2)
->>>>>>> ca3e5eb8faceb8b65c1a42149489484692158c7c
 ```
 
 
