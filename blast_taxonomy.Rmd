@@ -163,7 +163,7 @@ blast_tax <- blast_tax[, c("asv_name", "acc", "percent_match", "uid",
                            yes_ranks)]
 
 
-###ANDY'S ORIGINA if data frames are not too large to exceed memory
+###ANDY'S ORIGINAL if data frames are not too large to exceed memory
 #blast_tax <- merge(acc_uid_hash, higher_tax) |> # add taxonomy to acc numbers
 #    merge(y = s[, -which(names(s) == "species")]) # add above to BLAST output
 
@@ -272,11 +272,12 @@ tax_final <- do.call(rbind, tax_final)
 #Taxonomy exploration and visualization
 ```{r}
 arthropoda_count <- sum(tax_final$phylum == "Arthropoda", na.rm = TRUE)
-total_count <- sum(!is.na(tax_final$phylum))
+total_count <- nrow(tax_final)  # includes NAs
 percentage_arthropoda <- (arthropoda_count / total_count) * 100
 percentage_arthropoda
+
 ```
-##11.88% of ASVs are arthropoda, but how much of the relative abundance is arthropoda (need to calculate using ASV frequency) 
+##9.12% of ASVs are arthropoda, but how much of the relative abundance is arthropoda (need to calculate using ASV frequency) 
 
 ##Bar plot of phylums
 ```{r}
@@ -348,6 +349,8 @@ phylum_abundance <- tax_final_split %>%
     mutate(percentage = (total_phylum_count / total_reads) * 100)
 phylum_abundance
 
+#write.csv(phylum_abundance, "phylum_abundance.csv", row.names = FALSE)
+
 kingdom_total_reads <- tax_final_split %>%
   group_by(kingdom) %>%
   summarize(total_kingdom_reads = sum(count))
@@ -394,15 +397,26 @@ arthropoda <- tax_final_split %>%
     filter(phylum == "Arthropoda")
 head(arthropoda)
 
-write.csv(arthropoda, "arthropoda_lyon_pilot.csv", row.names = FALSE)
+# Replace 'your_table_name' with the actual name of your data frame
+#arthropoda_asv_class_counts <- arthropoda %>%
+#  group_by(class) %>%
+#  summarize(asv_count = n_distinct(asv_id)) %>%
+#  arrange(desc(asv_count))
+
+# View the result
+#print(arthropoda_asv_class_counts)
+
+
+#write.csv(arthropoda, "arthropoda_lyon_pilot.csv", row.names = FALSE)
 
 total_reads_arthropoda <- sum(arthropoda$count)
 
-arthropoda_class <- metazoa %>%
+arthropoda_class <- arthropoda %>%
   group_by(class) %>%
   summarize(total_class_count = sum(count)) %>%
-    mutate(percentage = (total_class_count / total_reads_arthropoda) * 100)
-arthropoda_class
+  mutate(percentage = (total_class_count / sum(total_class_count)) * 100)
+
+#write.csv(arthropoda_class, "arthropoda_class_summary.csv", row.names = FALSE)
 
 ggplot(arthropoda_class, aes(x = class, y = total_class_count)) +
   geom_bar(stat = "identity") +  
@@ -410,6 +424,7 @@ ggplot(arthropoda_class, aes(x = class, y = total_class_count)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),  
         legend.position = "right")  
+
 ```
 
 

@@ -66,6 +66,15 @@ ps <- phyloseq(asvtab, samp_data, tax_tab, lyon_seqs)
 
 ```
 
+#Number of class per site
+```{r}
+
+```
+
+
+
+
+
 Alpha diversity
 ```{r}
 plot_richness(ps, measures=c("Chao1", "Shannon"), x="substrate", color="method", shape="site_type")

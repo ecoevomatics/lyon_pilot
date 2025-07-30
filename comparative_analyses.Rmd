@@ -52,7 +52,7 @@ colnames(merged_arthro)[colnames(merged_arthro) == "Sequence.x"] <- "sequence"
 head(merged_arthro)
 ```
 
-## Convert data to long format and make Frequency column numeric
+## Convert data to long format and make Frequency column to show number of reads
 ```{r}
 library(reshape2)
 library(ggplot2)
@@ -87,22 +87,6 @@ write.csv(final, "final.csv", row.names = FALSE)
 
 
 # Now we can begin analyses on the dataset
-
-## Heatmap of ASV frequency for the highest frequency ASVs; too many to display to include lower occurring ASVs
-```{r}
-library(dplyr)
-
-subset1_final <- final %>%
-  mutate(count = as.numeric(count)) %>%   
-  filter(count >= 100 & count <= 43976)
-
-ggplot(subset1_final, aes(x = Sample, y = asv_id, fill = Frequency)) +
-  geom_tile() +
-  scale_fill_gradient(low = "white", high = "blue") +
-  labs(x = "Sample", y = "ASV ID", title = "ASV frequency across samples") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-```
 
 ## Or if we want to see a heatmap of the lowest taxons 
 ```{r}

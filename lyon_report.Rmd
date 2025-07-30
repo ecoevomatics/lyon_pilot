@@ -1,0 +1,27 @@
+---
+title: "lyon_report"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import the final merged data
+```{r}
+
+final <- read.csv("final.csv", stringsAsFactors = FALSE)
+
+```
+
+## Trim down final data
+```{r}
+library(dplyr)
+
+final_less <- final %>%
+  filter(Frequency != 0)
+
+final_less <- final_less %>%
+    select(-count)
+```
+
