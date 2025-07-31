@@ -7,21 +7,71 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Import the final merged data
+## Packages used below
 ```{r}
+library(dplyr)
+library(tidyr)
+```
 
+
+## Import the final merged data OR could maybe use phyloseq object? 
+```{r}
 final <- read.csv("final.csv", stringsAsFactors = FALSE)
 
 ```
 
+## Pull out control data
+```{r}
+controls_only <- final %>%
+  filter(
+    method %in% c("Lab water", "Longmire buffer") |
+    substrate == "Control" |
+    site_name == "Lab" |
+    site_type == "lab" |
+    Sample %in% c("A3-NCF-S219", "neg-control-S220", "filt-blank-S231", "LB-S232")
+  )
+```
+
+
 ## Trim down final data
 ```{r}
-library(dplyr)
-
 final_less <- final %>%
   filter(Frequency != 0)
 
 final_less <- final_less %>%
     select(-count)
+
+final_less <- final_less %>%
+  filter(
+    !(
+      method %in% c("Lab water", "Longmire buffer") |
+      substrate == "Control" |
+      site_name == "Lab" |
+      site_type == "lab" |
+      Sample %in% c("A3-NCF-S219", "neg-control-S220", "filt-blank-S231", "LB-S232")
+    )
+  )
+```
+
+
+## Table 3. Which species were detected? Relative abundance? Where?
+```{r}
+frequency_table <- final_less %>%
+  group_by(lowest_taxon, phylum, class, order, family, genus, species, site_name) %>%
+  summarize(Frequency = sum(Frequency, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(
+    names_from = site_name,
+    values_from = Frequency,
+    values_fill = 0
+  )
+
+frequency_table <- frequency_table %>%
+  rowwise() %>%
+  mutate(total_frequency = sum(c_across(where(is.numeric)), na.rm = TRUE)) %>%
+  ungroup()
+
+frequency_table <- frequency_table %>%
+  mutate(percent_total_reads = (total_frequency / sum(total_frequency)) * 100)
+
 ```
 
