@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(dplyr)
 library(tidyr)
+library(treemapify)
+library(ggplot2)
 ```
 
 
@@ -51,10 +53,17 @@ final_less <- final_less %>%
       Sample %in% c("A3-NCF-S219", "neg-control-S220", "filt-blank-S231", "LB-S232")
     )
   )
+
+final_less <- final_less %>%
+    select(-cleaned_extract)
+
+
+write.csv(final_less, "final_less.csv", row.names = FALSE)
+
 ```
 
 
-## Table 3. Which species were detected? Relative abundance? Where?
+## Lowest taxa frequency table: Which species were detected? Relative abundance? Where?
 ```{r}
 frequency_table <- final_less %>%
   group_by(lowest_taxon, phylum, class, order, family, genus, species, site_name) %>%
@@ -73,5 +82,39 @@ frequency_table <- frequency_table %>%
 frequency_table <- frequency_table %>%
   mutate(percent_total_reads = (total_frequency / sum(total_frequency)) * 100)
 
+frequency_table <- frequency_table[, c("lowest_taxon", "phylum", "class", "order", "family", "genus", "species", "Aihualama 1", "Aihualama 2", "Aihualama 3", "Aihualama 4", "total_frequency", "percent_total_reads")]
+
+
+
+write.csv(frequency_table, "frequency_table.csv", row.names = FALSE)
+
 ```
+
+
+Which orders were detected?
+```{r}
+# Total number of reads (sum of Frequency across all Arthropoda rows)
+total_reads <- sum(final_less$Frequency, na.rm = TRUE)
+
+# Summarize by order
+order_summary <- final_less %>%
+  group_by(order) %>%
+  summarise(
+    asv_count = n_distinct(asv_id),
+    read_count = sum(Frequency, na.rm = TRUE)
+  ) %>%
+  mutate(
+    percent_arthropoda_reads = (read_count / total_reads) * 100
+  ) %>%
+  arrange(desc(percent_arthropoda_reads))
+
+#all_taxa <- frequency_table %>%
+#  pull(lowest_taxon) %>%
+#  unique()
+
+```
+
+
+
+
 
