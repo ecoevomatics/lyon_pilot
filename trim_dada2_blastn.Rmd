@@ -105,8 +105,8 @@ library("dada2")
 ##VISUALIZE QUALITY of FORWARD reads with dada2
 ###Switch to use untrimmed files now that trimmomatic was dropped
 ```{r}
-###Set path
-path <- "~/bryo_arthro/lyon_pilot/working/untrimmed"
+###Set path to your folder of untrimmed sequencing .fastq files containing all files
+#path <- "~/bryo_arthro/lyon_pilot/working/untrimmed"
 list.files(path)
 ```
 
@@ -241,16 +241,16 @@ dim(seqtab)
 #Inspect distribution of sequence lengths
 table(nchar(getSequences(seqtab)))
 
-# 1. Generate the table
+# Generate the table
 #length_table <- table(nchar(getSequences(seqtab)))
 
-# 2. Convert it to a data.frame
+# Convert it to a data.frame
 #length_df <- as.data.frame(length_table)
 
-# 3. Rename columns for clarity (optional)
+# Rename columns for clarity (optional)
 #colnames(length_df) <- c("Sequence_Length", "Count")
 
-# 4. Export to CSV
+# Export to CSV
 #write.csv(length_df, file = "sequence_length_distribution.csv", row.names = FALSE)
 
 ```
@@ -284,14 +284,14 @@ sum(seqtab.nochim)/sum(seqtab)
 ```{r}
 rowSums(seqtab.nochim > 0)  # Number of ASVs per sample
 
-# 1. Get the counts
+# Get the counts
 asv_counts <- rowSums(seqtab > 0)
 
-# 2. Convert to a data.frame
+# Convert to a data.frame
 asv_df <- data.frame(Sample = names(asv_counts),
                      Num_ASVs = as.vector(asv_counts))
 
-# 3. Export to CSV
+# Export to CSV
 #write.csv(asv_df, file = "asv_counts_per_sample.csv", row.names = FALSE)
 ```
 
@@ -299,10 +299,10 @@ asv_df <- data.frame(Sample = names(asv_counts),
 ```{r}
 rowSums(seqtab.nochim)  # Total read counts per sample
 
-# 1. Calculate total reads per sample
+# Calculate total reads per sample
 total_reads <- rowSums(seqtab)
 
-# 2. Convert to a data.frame
+# Convert to a data.frame
 reads_df <- data.frame(Sample = names(total_reads),
                        Total_Reads = as.vector(total_reads))
 
@@ -312,7 +312,7 @@ reads_df <- data.frame(Sample = names(total_reads),
 
 ###Optionally, check sample composition
 ```{r}
-hist(colSums(seqtab.nochim > 0))  # Number of samples each ASV appears in
+#hist(colSums(seqtab.nochim > 0)) 
 ```
 
 ##TRACK reads through pipeline
@@ -323,25 +323,21 @@ colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "n
 rownames(track) <- sample.names
 track
 
+#write.csv(track, file = "dada2_tracking.csv", row.names = TRUE)
+
 # If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
 ```
 ####From manual: /Considerations for your own data: This is a great place to do a last sanity check. Outside of filtering, there should no step in which a majority of reads are lost. If a majority of reads failed to merge, you may need to revisit the truncLen parameter used in the filtering step and make sure that the truncated reads span your amplicon. If a majority of reads were removed as chimeric, you may need to revisit the removal of primers, as the ambiguous nucleotides in unremoved primers interfere with chimera identification./
 
 ##EXTRACT fasta and CSV of ASV sequences from sequence table with chimeras removed
 ```{r}
-#sq <- getSequences(seqtab.nochim)
-#id <- paste0("Abundance=", colSums(seqtab.nochim))
-#names(sq) <- id
-#library(dada2)
-#writeFasta(sq, file="lyon_pilot/working/lyon_pilot_asvs.fasta") #writeFasta no longer part of dada2
-
 # Define output file
 #fasta_file <- "lyon_pilot_asvs.fasta"
 
 # Extract ASV sequences
-#asv_seqs <- colnames(seqtab.nochim)  # ASV sequences
-#asv_counts <- colSums(seqtab.nochim)  # Get ASV counts across all samples
-#asv_headers <- paste0(">ASV", seq_len(length(asv_seqs)), "_count_", asv_counts)  # ASV identifiers and abundance headers
+#asv_seqs <- colnames(seqtab.nochim) 
+#asv_counts <- colSums(seqtab.nochim) 
+#asv_headers <- paste0(">ASV", seq_len(length(asv_seqs)), "_count_", asv_counts) 
 
 # Write to FASTA
 #writeLines(c(rbind(asv_headers, asv_seqs)), fasta_file)
