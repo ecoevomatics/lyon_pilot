@@ -105,8 +105,8 @@ library("dada2")
 ##VISUALIZE QUALITY of FORWARD reads with dada2
 ###Switch to use untrimmed files now that trimmomatic was dropped
 ```{r}
-###Set path
-path <- "~/bryo_arthro/lyon_pilot/working/untrimmed"
+###Set path to your folder of untrimmed sequencing .fastq files containing all files
+#path <- "~/bryo_arthro/lyon_pilot/working/untrimmed"
 list.files(path)
 ```
 
@@ -123,7 +123,7 @@ sample.names
 ```
 ###Visualize quality profiles of forward reads
 ```{r}
-#plotQualityProfile(fnFs[1:12])
+plotQualityProfile(fnFs[1:12])
 #plotQualityProfile(fnFs[13:24])
 #plotQualityProfile(fnFs[25:36])
 #plotQualityProfile(fnFs[37:48])
@@ -155,7 +155,7 @@ out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, trimLeft=c(25, 25), truncLen=c(
               compress=TRUE, multithread=TRUE)
 
 ###Check trim results
-#out
+out
 
 ```
 
@@ -240,6 +240,19 @@ dim(seqtab)
 
 #Inspect distribution of sequence lengths
 table(nchar(getSequences(seqtab)))
+
+# Generate the table
+#length_table <- table(nchar(getSequences(seqtab)))
+
+# Convert it to a data.frame
+#length_df <- as.data.frame(length_table)
+
+# Rename columns for clarity (optional)
+#colnames(length_df) <- c("Sequence_Length", "Count")
+
+# Export to CSV
+#write.csv(length_df, file = "sequence_length_distribution.csv", row.names = FALSE)
+
 ```
 ###458bp amplicon expected
 
@@ -249,18 +262,6 @@ table(nchar(getSequences(seqtab)))
 #hist(table(nchar(getSequences(seqtab_cut))))
 ```
 
-###Optionally, check sample composition
-```{r}
-rowSums(seqtab > 0)  # Number of ASVs per sample
-```
-###Optionally, check sample composition
-```{r}
-rowSums(seqtab)  # Total read counts per sample
-```
-###Optionally, check sample composition
-```{r}
-hist(colSums(seqtab > 0))  # Number of samples each ASV appears in
-```
 
 ##REMOVE CHIMERAS and extract final sequence table
 ```{r}
@@ -271,24 +272,47 @@ write.csv(seqtab.nochim, "seqtab.nochim.csv")
 
 ```
 
-###Optionally, see percentage of merged reads that were chimeras if we account for the abundances of variants
+###See how many reads survived chimera filtering 
 ```{r}
 sum(seqtab.nochim)/sum(seqtab)
 ```
+####So 99.77% reads survived chimera filtering
+####So 100-0.997 = 0.233% of merged reads that were chimeras if we account for the abundances of variants
 ####So when we account for the abundances of those variances lost, they account for ~62% of the merged sequence reads.
-####From dada2 manual: Most of your reads should remain after chimera removal (it is not uncommon for a majority of sequence variants to be removed though). If most of your reads were removed as chimeric, upstream processing may need to be revisited. In almost all cases this is caused by primer sequences with ambiguous nucleotides that were not removed prior to beginning the DADA2 pipeline.
 
 ###Optionally, check sample composition
 ```{r}
 rowSums(seqtab.nochim > 0)  # Number of ASVs per sample
+
+# Get the counts
+asv_counts <- rowSums(seqtab > 0)
+
+# Convert to a data.frame
+asv_df <- data.frame(Sample = names(asv_counts),
+                     Num_ASVs = as.vector(asv_counts))
+
+# Export to CSV
+#write.csv(asv_df, file = "asv_counts_per_sample.csv", row.names = FALSE)
 ```
+
 ###Optionally, check sample composition
 ```{r}
 rowSums(seqtab.nochim)  # Total read counts per sample
+
+# Calculate total reads per sample
+total_reads <- rowSums(seqtab)
+
+# Convert to a data.frame
+reads_df <- data.frame(Sample = names(total_reads),
+                       Total_Reads = as.vector(total_reads))
+
+# 3. Export to CSV
+#write.csv(reads_df, file = "total_reads_per_sample.csv", row.names = FALSE)
 ```
+
 ###Optionally, check sample composition
 ```{r}
-hist(colSums(seqtab.nochim > 0))  # Number of samples each ASV appears in
+#hist(colSums(seqtab.nochim > 0)) 
 ```
 
 ##TRACK reads through pipeline
@@ -299,25 +323,21 @@ colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "n
 rownames(track) <- sample.names
 track
 
+#write.csv(track, file = "dada2_tracking.csv", row.names = TRUE)
+
 # If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
 ```
 ####From manual: /Considerations for your own data: This is a great place to do a last sanity check. Outside of filtering, there should no step in which a majority of reads are lost. If a majority of reads failed to merge, you may need to revisit the truncLen parameter used in the filtering step and make sure that the truncated reads span your amplicon. If a majority of reads were removed as chimeric, you may need to revisit the removal of primers, as the ambiguous nucleotides in unremoved primers interfere with chimera identification./
 
 ##EXTRACT fasta and CSV of ASV sequences from sequence table with chimeras removed
 ```{r}
-#sq <- getSequences(seqtab.nochim)
-#id <- paste0("Abundance=", colSums(seqtab.nochim))
-#names(sq) <- id
-#library(dada2)
-#writeFasta(sq, file="lyon_pilot/working/lyon_pilot_asvs.fasta") #writeFasta no longer part of dada2
-
 # Define output file
 #fasta_file <- "lyon_pilot_asvs.fasta"
 
 # Extract ASV sequences
-#asv_seqs <- colnames(seqtab.nochim)  # ASV sequences
-#asv_counts <- colSums(seqtab.nochim)  # Get ASV counts across all samples
-#asv_headers <- paste0(">ASV", seq_len(length(asv_seqs)), "_count_", asv_counts)  # ASV identifiers and abundance headers
+#asv_seqs <- colnames(seqtab.nochim) 
+#asv_counts <- colSums(seqtab.nochim) 
+#asv_headers <- paste0(">ASV", seq_len(length(asv_seqs)), "_count_", asv_counts) 
 
 # Write to FASTA
 #writeLines(c(rbind(asv_headers, asv_seqs)), fasta_file)
@@ -406,8 +426,8 @@ track
 
 ##Check if fid is empty
 #if [[ -z "$fid" ]]; then
-    echo "Error: No input file found for task ID $SLURM_ARRAY_TASK_ID"
-    exit 1
+#    echo "Error: No input file found for task ID $SLURM_ARRAY_TASK_ID"
+#    exit 1
 #fi
 
 ##Run blastn with the selected input file
@@ -524,7 +544,7 @@ track
 
 ##Merge job array files into one
 ```{bash}
-##Navigate to folder with seperate output files
+##Navigate to folder with separate output files
 #cat *.out > lyon_pilot_all_blast_merged.out
 ```
 

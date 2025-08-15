@@ -164,13 +164,24 @@ ggplot(rfy_res, aes(x = depth, y = nspp_m, color = samp)) +
 
 
 
+
+
+Ordination
+
 ```{r}
-foo <- prune_samples(sample_sums(ps4rar_merged) > 0, ps4rar_merged) |>
-    tax_glom("order")
+ps4rar_ord <- prune_samples(sample_sums(ps4rar_merged) >0, ps4rar_merged) |> 
+    ordinate("NMDS", "bray")
+plot_ordination(ps4rar_merged, ps4rar_ord, type="samples", color="site_name", shape="substrate", title="Samples (Distance metric: Bray)")
 
-doo <- ordinate(foo, "NMDS", "bray")
-plot_ordination(foo, doo, color = "site_name", shape = "substrate")
+plot_ordination(ps4rar_merged, ps4rar_ord, type="taxa", color="order", shape="class", title="Samples (Distance metric: Bray)")
 
-plot_heatmap(ps4rar_merged, sample.order = "site_name")
+plot_ordination(ps4rar_merged, ps4rar_ord, type="", color="order", shape="class", title="Samples (Distance metric: Bray)")
+```
+
+Merge ASVs of the same taxa with taxglom
+```{r}
 
 ```
+
+
+

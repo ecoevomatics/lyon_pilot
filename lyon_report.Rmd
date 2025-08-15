@@ -1,0 +1,307 @@
+---
+title: "lyon_report"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Packages used below
+```{r}
+library(dplyr)
+library(tidyr)
+library(treemapify)
+library(ggplot2)
+library(vegan)
+library(viridis)
+library(ggforce)
+library(devtools)
+library(pairwiseAdonis)
+```
+
+
+## Import the final merged data OR could maybe use phyloseq object? 
+```{r}
+final <- read.csv("final.csv", stringsAsFactors = FALSE)
+
+```
+
+## Pull out control data
+```{r}
+controls_only <- final %>%
+  filter(
+    method %in% c("Lab water", "Longmire buffer") |
+    substrate == "Control" |
+    site_name == "Lab" |
+    site_type == "lab" |
+    Sample %in% c("A3-NCF-S219", "neg-control-S220", "filt-blank-S231", "LB-S232")
+  )
+```
+
+
+## Trim down final data
+```{r}
+final_less <- final %>%
+  filter(Frequency != 0)
+
+final_less <- final_less %>%
+    select(-count)
+
+final_less <- final_less %>%
+  filter(
+    !(
+      method %in% c("Lab water", "Longmire buffer") |
+      substrate == "Control" |
+      site_name == "Lab" |
+      site_type == "lab" |
+      Sample %in% c("A3-NCF-S219", "neg-control-S220", "filt-blank-S231", "LB-S232")
+    )
+  )
+
+final_less <- final_less %>%
+    select(-cleaned_extract)
+
+
+write.csv(final_less, "final_less.csv", row.names = FALSE)
+
+```
+
+
+## Lowest taxa frequency table: Which species were detected? Relative abundance? Where?
+```{r}
+frequency_table <- final_less %>%
+  group_by(lowest_taxon, phylum, class, order, family, genus, species, site_name) %>%
+  summarize(Frequency = sum(Frequency, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(
+    names_from = site_name,
+    values_from = Frequency,
+    values_fill = 0
+  )
+
+frequency_table <- frequency_table %>%
+  rowwise() %>%
+  mutate(total_frequency = sum(c_across(where(is.numeric)), na.rm = TRUE)) %>%
+  ungroup()
+
+frequency_table <- frequency_table %>%
+  mutate(percent_total_reads = (total_frequency / sum(total_frequency)) * 100)
+
+frequency_table <- frequency_table[, c("lowest_taxon", "phylum", "class", "order", "family", "genus", "species", "Aihualama 1", "Aihualama 2", "Aihualama 3", "Aihualama 4", "total_frequency", "percent_total_reads")]
+
+
+write.csv(frequency_table, "frequency_table.csv", row.names = FALSE)
+
+```
+
+
+Which orders were detected?
+```{r}
+# Total number of reads (sum of Frequency across all Arthropoda rows)
+total_reads <- sum(final_less$Frequency, na.rm = TRUE)
+
+# Summarize by order
+order_summary <- final_less %>%
+  group_by(order) %>%
+  summarise(
+    asv_count = n_distinct(asv_id),
+    read_count = sum(Frequency, na.rm = TRUE)
+  ) %>%
+  mutate(
+    percent_arthropoda_reads = (read_count / total_reads) * 100
+  ) %>%
+  arrange(desc(percent_arthropoda_reads))
+
+#all_taxa <- frequency_table %>%
+#  pull(lowest_taxon) %>%
+#  unique()
+
+```
+
+
+## How many reads per method?
+```{r}
+final_less %>%
+  group_by(method) %>%
+  summarise(total_frequency = sum(Frequency))
+
+final_less %>%
+  group_by(substrate) %>%
+  summarise(total_frequency = sum(Frequency))
+
+final_less %>%
+  group_by(site_name) %>%
+  summarise(total_frequency = sum(Frequency))
+
+final_less %>%
+  group_by(method, substrate) %>%
+  summarise(total_frequency = sum(Frequency), .groups = "drop")
+
+```
+
+## Are sites significantly different?
+```{r}
+community_sample <- final_less %>%
+  group_by(Sample, lowest_taxon) %>%
+  summarise(freq = sum(Frequency), .groups = "drop") %>%
+  pivot_wider(names_from = lowest_taxon, values_from = freq, values_fill = 0)
+    
+community_sample_matrix <- as.data.frame(community_sample)
+rownames(community_sample_matrix) <- community_sample_matrix$Sample
+community_sample_matrix <- community_sample_matrix[, -which(names(community_sample_matrix) == "Sample")]
+
+metadata_sample <- final_less %>%
+  select(Sample, site_name) %>%
+  distinct() %>%
+  filter(Sample %in% rownames(community_sample_matrix)) %>%
+  arrange(match(Sample, rownames(community_sample_matrix)))
+
+bray_dist <- vegdist(community_sample_matrix, method = "bray")
+
+adonis2(bray_dist ~ site_name, data = metadata_sample, permutations = 999)
+
+pairwise_results <- pairwise.adonis(bray_dist, metadata_sample$site_name, perm = 999)
+print(pairwise_results)
+
+```
+## Are the methods significantly different?
+```{r}
+metadata_sample <- final_less %>%
+  select(Sample, method) %>%
+  distinct() %>%
+  filter(Sample %in% rownames(community_sample_matrix)) %>%
+  arrange(match(Sample, rownames(community_sample_matrix)))
+
+bray_dist <- vegdist(community_sample_matrix, method = "bray")
+
+adonis2(bray_dist ~ method, data = metadata_sample, permutations = 999)
+
+pairwise_results <- pairwise.adonis(bray_dist, metadata_sample$method, perm = 999)
+print(pairwise_results)
+```
+
+## Figure 4 NMDS by  method
+```{r}
+community_matrix <- final_less %>%
+  group_by(site_name, method, lowest_taxon) %>%
+  summarise(Frequency = sum(as.numeric(Frequency)), .groups = "drop") %>%
+  pivot_wider(
+    names_from = lowest_taxon,
+    values_from = Frequency,
+    values_fill = list(Frequency = 0)
+  )
+
+metadata <- community_matrix %>% select(site_name, method)
+community_data <- community_matrix %>% select(-site_name, -method)
+
+set.seed(123) 
+nmds <- metaMDS(community_data, distance = "bray", k = 2, trymax = 100)
+
+nmds_scores$site_name <- metadata$site_name 
+
+ggplot(nmds_scores, aes(x = NMDS1, y = NMDS2, color = method, shape = site_name)) +
+  geom_point(size = 4) +
+  labs(
+    title = "NMDS of Arthropod eDNA Communities by Sampling Method and Site",
+    x = "NMDS1", y = "NMDS2"
+  )
+
+
+ggplot(nmds_scores, aes(x = NMDS1, y = NMDS2, color = method, shape = site_name)) +
+  geom_point(size = 4, stroke = 2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
+  scale_color_manual(values = c("Gauze" = "#D36C9F", "Roller" = "#A87DC2", "Scrape" = "#F4A261", "Water" = "#56B4E9FF")) +
+  scale_shape_manual(values = c(16, 17, 15, 8)) + 
+  scale_x_continuous(expand = expansion(mult = c(0.15, 0.15))) +   # added padding
+  scale_y_continuous(expand = expansion(mult = c(0.15, 0.15))) +   # added padding
+  theme_bw() +
+  theme(
+    text = element_text(family = "Times New Roman"),
+    plot.title = element_text(size = 16, face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 12),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 12)
+  ) +
+  labs(
+    title = "NMDS of Arthropod eDNA Community Composition by Method and Site",
+    x = "NMDS1",
+    y = "NMDS2",
+    color = "Method",
+    shape = "Site"
+  )
+
+
+```
+
+## Are the methods significantly different?
+```{r}
+metadata_sample <- final_less %>%
+  select(Sample, substrate) %>%
+  distinct() %>%
+  filter(Sample %in% rownames(community_sample_matrix)) %>%
+  arrange(match(Sample, rownames(community_sample_matrix)))
+
+bray_dist <- vegdist(community_sample_matrix, method = "bray")
+
+set.seed(234)
+adonis2(bray_dist ~ substrate, data = metadata_sample, permutations = 999)
+
+pairwise_results <- pairwise.adonis(bray_dist, metadata_sample$substrate, perm = 999)
+print(pairwise_results)
+
+```
+
+
+## Figure 3 NMDS by substrate
+```{r}
+community_matrix2 <- final_less %>%
+  group_by(site_name, substrate, lowest_taxon) %>%
+  summarise(Frequency = sum(as.numeric(Frequency)), .groups = "drop") %>%
+  pivot_wider(
+    names_from = lowest_taxon,
+    values_from = Frequency,
+    values_fill = list(Frequency = 0)
+  )
+
+metadata2 <- community_matrix2 %>% select(site_name, substrate)
+community_data2 <- community_matrix2 %>% select(-site_name, -substrate)
+
+set.seed(345)
+nmds2 <- metaMDS(community_data2, distance = "bray", k = 2, trymax = 100)
+
+nmds_scores2 <- as.data.frame(scores(nmds2, display = "sites"))
+nmds_scores2$site_name <- metadata2$site_name
+nmds_scores2$substrate <- metadata2$substrate
+
+
+ggplot(nmds_scores2, aes(x = NMDS1, y = NMDS2, color = substrate, shape = site_name)) +
+  geom_point(size = 4, stroke = 2) +
+  stat_ellipse(aes(group = substrate), linetype = 2, size = 1, alpha = 0.3, show.legend = FALSE) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray60") +
+  scale_color_manual(values = c("Bryophyte" = "#008348FF","Bare rock" = "#BB9753FF","Water" = "#56B4E9FF")) +
+  scale_shape_manual(values = c(16, 17, 15, 8)) + 
+  theme_bw() +
+  theme(
+    text = element_text(family = "Times New Roman"),
+    plot.title = element_text(size = 16, face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 12),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 12)
+  ) +
+  labs(
+    title = "NMDS of Arthropod eDNA Community Composition by Substrate and Site",
+    x = "NMDS1",
+    y = "NMDS2",
+    color = "Substrate",
+    shape = "Site"
+  )
+
+
+```
+
