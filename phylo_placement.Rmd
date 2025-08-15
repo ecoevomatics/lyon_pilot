@@ -1,0 +1,32 @@
+---
+title: "phylo_placement"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Solenopsis mameti investigation
+```{r}
+library(ape)
+library(seqinr)
+
+aligned_seqs <- read.dna("~/bryo_arthro/lyon_pilot/working/mafft_aligned.fasta", format="fasta")
+dim(aligned_seqs)               
+image.DNAbin(aligned_seqs)  
+
+d <- dist.dna(aligned_seqs, model="K80", pairwise.deletion=TRUE)
+
+tree_nj <- nj(d)
+plot(tree_nj, cex=0.8)
+
+tree_njs <- njs(d)
+plot(tree_njs, cex=0.8)
+
+plotree_bionj <- bionj(d)
+plot(tree_bionj, cex=0.8)
+
+
+```
+
