@@ -163,6 +163,9 @@ ggplot(rfy_res, aes(x = depth, y = nspp_m, color = samp)) +
 ```
 
 
+
+
+
 Ordination
 
 ```{r}
@@ -179,11 +182,6 @@ Merge ASVs of the same taxa with taxglom
 ```{r}
 
 ```
-
-
-
-
-
 
 
 
