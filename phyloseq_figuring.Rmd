@@ -162,3 +162,15 @@ ggplot(rfy_res, aes(x = depth, y = nspp_m, color = samp)) +
 
 ```
 
+
+
+```{r}
+foo <- prune_samples(sample_sums(ps4rar_merged) > 0, ps4rar_merged) |>
+    tax_glom("order")
+
+doo <- ordinate(foo, "NMDS", "bray")
+plot_ordination(foo, doo, color = "site_name", shape = "substrate")
+
+plot_heatmap(ps4rar_merged, sample.order = "site_name")
+
+```
