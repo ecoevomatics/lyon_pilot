@@ -1,0 +1,127 @@
+---
+title: "Circos Plot Exploration"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load these at the start of each session
+```{r}
+library(circlize)
+library(tidyverse)
+library(ggplot2)
+```
+
+# Try example data
+```{r}
+#load in spa
+chil_fst<-read.csv("~/Downloads/fst_spa_window_V3.csv")
+head(chil_fst)
+str(chil_fst)
+chil_fst$Chromosome<-as.factor(chil_fst$Chromosome)
+chil_fst$FST_abs<-as.numeric(chil_fst$FST_abs)
+sectors<-chil_fst$Chromosome
+chil_fst<-na.omit(chil_fst)
+
+
+##load in SPA
+chil_spa<-read.csv("~/Downloads/fst_spa_window_V4.csv")
+head(chil_spa)
+str(chil_spa)
+chil_spa$Chromosome<-as.factor(chil_spa$Chromosome)
+sectors<-chil_fst$Chromosome
+chil_spa<-na.omit(chil_spa)
+
+
+circos.par("track.height" = 0.1)
+# Step1: Initialise the chart giving factor and x-axis.
+circos.initialize(factors=chil_fst$Chromosome, x=chil_fst$ChromStart )
+set_track_gap(mm_h(15)) 
+
+#circos.initializeWithIdeogram(chil_fst)
+
+# Step 2: Build the regions.
+
+circos.trackPlotRegion(factors = chil_fst$Chromosome, 
+                       y = chil_fst$FST
+                       , panel.fun = function(x, y) {
+  circos.axis(labels=F, labels.font=1, lwd=0.8)
+                         circos.yaxis(labels.cex=0.2, labels.font=1, lwd=0.8)
+})
+
+# Step 3: Add points
+circos.trackLines(chil_fst$Chromosome, 
+                  chil_fst$ChromStart,#[order(chil_fst$ChromStart)], 
+                  chil_fst$FST,#[order(chil_fst$FST)], 
+                  col = "red", lwd=2)
+
+# Build the regions of track #2:
+circlize::circos.trackPlotRegion(factors = chil_spa$Chromosome, 
+                                 y=chil_spa$SPA_abs, 
+                                 panel.fun = function(x, y) {
+  circos.axis(labels=F, major.tick=FALSE)
+               circos.yaxis(labels.cex=0.2, labels.font=1, lwd=0.8)
+})
+# --> Add a scatterplot on it
+circos.trackLines(chil_spa$Chromosome, 
+                  chil_spa$ChromStart,#[order(chil_fst$ChromStart)], 
+                  chil_spa$SPA,#[order(chil_fst$FST)], 
+                  col = "blue", lwd=2)
+
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, 
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5))
+}, bg.border = NA) 
+
+circos.clear()
+```
+
+# Prep my data
+```{r}
+# Import
+tax_final <- read.csv("~/bryo_arthro/lyon_pilot_git/tax_final.csv")
+
+# Fix columns
+tax_final <- tax_final %>% separate(asv_name, into = c("asv_id", "count"), sep = "_count_")
+tax_final$count <- as.numeric(tax_final$count)
+tax_final <- tax_final %>% rename(num_reads = count)
+
+# Make all ASVs have 3 digits
+tax_final$asv_id <- paste0("ASV", str_pad(gsub("ASV", "", tax_final$asv_id), width = 3, pad = "0"))
+
+# Check data frame 
+#glimpse(tax_final)
+``` 
+
+# Look at how primers are interacting with Arthropoda (target) vs. non-Arthropoda
+
+## Add column to distinguish target vs. non-target
+```{r}
+tax_final <- tax_final %>%
+  mutate(target_group = if_else(phylum == "Arthropoda", "Target", "Non-target", missing = "Non-target"))
+```
+
+## Focus on kingdoms
+```{r}
+# Only look at rows with kingdoms ID'd
+kingdom_focus <- tax_final %>% filter(!is.na(kingdom))
+
+# Group kingdoms and target group
+kingdom_focus <- kingdom_focus %>% group_by(target_group, kingdom)
+
+# Total reads for target group per kingdoms
+kingdom_focus <- kingdom_focus %>% summarise(total_reads = sum(num_reads), .groups = "drop")
+
+
+```
+
+
+
+
+
+
+
+
+

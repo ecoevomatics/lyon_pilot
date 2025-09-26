@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ##Metadata
 ###Primers used: BF3/BR2
 ###Amplicon size: 458 bp
+###Amplicon + primer + Nextera indeces: 525 bp
 ####BF3: CCHGAYATRGCHTTYCCHCG
 ####BR2: TCDGGRTGNCCRAARAAYCA
 
